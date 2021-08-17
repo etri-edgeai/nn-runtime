@@ -7,14 +7,16 @@ import time
 import torch
 import torchvision
 import argparse
+import yaml
 
-TRT_LOGGER = trt.Logger(trt.Logger.VERBOSE)
+TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
 def alloc_buf(engine):
     inputs = []
     outputs = []
     bindings = []
-    input_size = trt.volume(engine.get_binding_shape(0))
+    input_size = trt.volume(engine.get_binding_shape(0))/3
+    input_size = input_size**(1/2)
 
     class HostDeviceMem(object):
         def __init__(self, cpu_mem, gpu_mem):
@@ -154,14 +156,13 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
 
 
 def preprocess_image(origin_image):
-    input_image = cv2.resize(origin_image, dsize=(416, 416))
-    input_image = cv2.cvtColor(input_image, cv2.COLOR_BGR2RGB)
+    input_image = cv2.cvtColor(origin_image, cv2.COLOR_BGR2RGB)
     input_image = input_image.astype(np.float32)
     input_image /= 255.0
     input_image = np.transpose(input_image, (2, 0, 1))
     if len(input_image.shape) == 3:
         input_image = np.expand_dims(input_image, 0)
-        print('input shape : ' + str(input_image.shape))
+        #print('input shape : ' + str(input_image.shape))
     return input_image
 
 
@@ -172,43 +173,56 @@ if __name__ == "__main__":
     parser.add_argument('--conf_thres', required=False, default=0.25, help='confidence threshold')
     parser.add_argument('--iou_thres', required=False, default=0.45, help='iou threshold')
     parser.add_argument('--batch', required=False, default=1, help='batch size')
+    parser.add_argument('--classes', required=True, help='yaml file with class info')
     args = parser.parse_args()
 
+    with open(args.classes) as f:
+        classes = yaml.safe_load(f)
+        classes = classes['class_names']
 
     runtime = trt.Runtime(TRT_LOGGER)
     with open(args.model, 'rb') as f:
         engine = runtime.deserialize_cuda_engine(f.read())
+    
+    # allocate buffer(cpu, gpu)
+    inputs, outputs, bindings, input_size = alloc_buf(engine)
 
     # preprocessing image
     origin_image = cv2.imread(args.image)
+    origin_image = cv2.resize(origin_image, dsize=(int(input_size), int(input_size)))
     input_image = preprocess_image(origin_image)
-
-    inputs, outputs, bindings, input_size = alloc_buf(engine)
     inputs[0].cpu = input_image.ravel()
+    
+    # inference
     inf_res = inference(engine, inputs, outputs, bindings)
     
     # postprocessing inference result
-    inf_res = inf_res.reshape((10647, 25))
+    inf_res = inf_res.reshape((-1, len(classes)+5))
     inf_res = np.expand_dims(inf_res, axis=0)
     inf_res = torch.tensor(inf_res)
-    inf_res = non_max_suppression(prediction=inf_res, conf_thres=args.conf_thres, iou_thres=args.iou_thres, classes=None, agnostic=True)
+    inf_res = non_max_suppression(prediction=inf_res, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres), classes=None, agnostic=True)
     inf_res = torch.stack(inf_res)
     
     # print result
     result = np.array(inf_res).squeeze(axis=0)
     result_image = origin_image.copy()
-    print("\n\n--------------- RESULT ---------------")
+    print("--------------- RESULT ---------------")
     for i in range(result.shape[0]):
+        detected = str(classes[int(result[i][5])]).replace('‘', '').replace('’', '')
+
         confidence_str = str(result[i][4])
         result_image = cv2.rectangle(result_image, (result[i][0], result[i][1]), (result[i][2], result[i][3]), (0, 0, 255), 1)
-        result_image = cv2.putText(result_image, str(result[i][4]), (result[i][0], result[i][1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
+        #result_image = cv2.putText(result_image, str(result[i][4]), (result[i][0], result[i][1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
+        result_image = cv2.putText(result_image, str(detected), (int(result[i][0]), int(result[i][1]-1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
 
-        print("Detect " + str(i) + "(" + str(int(result[i][5])) + ")")
+        print("Detect " + str(i) + "(" + str(detected) + ")")
         print("Coordinates : [" + str(result[i][0]) + ", " + str(result[i][1]) + ", " + str(result[i][2]) + ", " + str(result[i][3]) + "]")
         print("Confidence : " + str(result[i][4]))
         print("")
-    
+
+    cv2.imwrite('result_image.jpg', result_image)
+
     # show result image
-    cv2.imshow("Result", result_image)
-    cv2.waitKey()
+#    cv2.imshow("Result", result_image)
+#    cv2.waitKey()
 
