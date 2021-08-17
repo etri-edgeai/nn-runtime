@@ -220,9 +220,9 @@ if __name__ == "__main__":
         print("Confidence : " + str(result[i][4]))
         print("")
 
-    cv2.imwrite('result_image.jpg', result_image)
+#    cv2.imwrite('result_image.jpg', result_image)
 
     # show result image
-#    cv2.imshow("Result", result_image)
-#    cv2.waitKey()
+    cv2.imshow("Result", result_image)
+    cv2.waitKey()
 
