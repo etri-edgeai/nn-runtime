@@ -217,6 +217,8 @@ def print_result(result):
             print("Confidence : " + str(result[j][4]))
             print("")
         print("\n\n")
+        cv2.imshow("result"+str(i), result_image)
+    cv2.waitKey()
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -263,10 +265,3 @@ if __name__ == "__main__":
 
     # print result
     print_result(res)
-
-#    cv2.imwrite('result_image.jpg', result_image)
-
-    # show result image
-#    cv2.imshow("Result", result_image)
-#    cv2.waitKey()
-
