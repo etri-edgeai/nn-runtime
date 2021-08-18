@@ -12,9 +12,17 @@ import os
 
 
 class ModelWrapper():
-    def __init__(self, model_path:str):
-        self.model_path = model_path
+    def __init__(self, model_path: str):
+        self._model_path = model_path
         self.model = None
+
+    @property
+    def model_path(self):
+        return self._model_path
+
+    @model_path.setter
+    def model_path(self, value):
+        self._model_path = value
 
     def load_model(self):
         """Set up model. please specify self.model """
@@ -24,14 +32,51 @@ class ModelWrapper():
         """Run inference."""
         raise NotImplementedError
 
+
 class TRTWrapper(ModelWrapper):
-    def __init__(self, model_path):
+    def __init__(self, model_path, batch):
         super(TRTWrapper, self).__init__(model_path)
+        self._batch = batch
+        self._bindings = None
+        self._inputs = None
+        self._outputs = None
+
+    @property
+    def batch(self):
+        return self._batch
+
+    @batch.setter
+    def batch(self, value):
+        self._batch = value
+
+    @property
+    def bindings(self):
+        return self._bindings
+
+    @bindings.setter
+    def bindings(self, value):
+        self._bindings = value
+
+    @property
+    def inputs(self):
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, value):
+        self._inputs = value
+
+    @property
+    def outputs(self):
+        return self._outputs
+
+    @outputs.setter
+    def outputs(self, value):
+        self._outputs = value
 
     def load_model(self):
         TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
         runtime = trt.Runtime(TRT_LOGGER)
-        with open(args.model, 'rb') as f:
+        with open(self.model_path, 'rb') as f:
             engine = runtime.deserialize_cuda_engine(f.read())
             self.model = engine
         
@@ -46,7 +91,7 @@ class TRTWrapper(ModelWrapper):
             with self.model.create_execution_context() as context:
                 #async version
                 [cuda.memcpy_htod_async(inp.gpu, inp.cpu, stream) for inp in self.inputs]
-                context.execute_async(args.batch, self.bindings, stream.handle, None)
+                context.execute_async(self.batch, self.bindings, stream.handle, None)
                 [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
                 stream.synchronize()
 
@@ -238,7 +283,7 @@ if __name__ == "__main__":
     # load model 
     extension = os.path.splitext(args.model)[1]
     if extension == '.trt':
-        model_wrapper = TRTWrapper(args.model)
+        model_wrapper = TRTWrapper(args.model, args.batch)
     input_size = model_wrapper.load_model()
 
     # load and preprocess image
