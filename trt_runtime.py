@@ -8,54 +8,86 @@ import torch
 import torchvision
 import argparse
 import yaml
+import os
 
-TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
-def alloc_buf(engine):
-    inputs = []
-    outputs = []
-    bindings = []
-    input_size = trt.volume(engine.get_binding_shape(0))/3
-    input_size = input_size**(1/2)
+class ModelWrapper():
+    def __init__(self, model_path:str):
+        self.model_path = model_path
+        self.model = None
 
-    class HostDeviceMem(object):
-        def __init__(self, cpu_mem, gpu_mem):
-            self.cpu = cpu_mem
-            self.gpu = gpu_mem
+    def load_model(self):
+        """Set up model. please specify self.model """
+        raise NotImplementedError
 
-    for binding in engine:
-        size = trt.volume(engine.get_binding_shape(binding))
-        dtype = trt.nptype(engine.get_binding_dtype(binding))
-        cpu_mem = cuda.pagelocked_empty(size, dtype)
-        gpu_mem = cuda.mem_alloc(cpu_mem.nbytes)
-        bindings.append(int(gpu_mem))
+    def inference(self, input_images):
+        """Run inference."""
+        raise NotImplementedError
+
+class TRTWrapper(ModelWrapper):
+    def __init__(self, model_path):
+        super(TRTWrapper, self).__init__(model_path)
+
+    def load_model(self):
+        TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+        runtime = trt.Runtime(TRT_LOGGER)
+        with open(args.model, 'rb') as f:
+            engine = runtime.deserialize_cuda_engine(f.read())
+            self.model = engine
         
-        if engine.binding_is_input(binding):
-            inputs.append(HostDeviceMem(cpu_mem, gpu_mem))
-        else:
-            outputs.append(HostDeviceMem(cpu_mem, gpu_mem))
+        return self.alloc_buf()
 
-    return inputs, outputs, bindings, input_size
+    def inference(self, input_images):
+        inf_res = []
+        stream = cuda.Stream()
 
+        for image in input_images:
+            self.inputs[0].cpu = image.ravel()
+            with self.model.create_execution_context() as context:
+                #async version
+                [cuda.memcpy_htod_async(inp.gpu, inp.cpu, stream) for inp in self.inputs]
+                context.execute_async(args.batch, self.bindings, stream.handle, None)
+                [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
+                stream.synchronize()
 
-def inference(engine, inputs, outputs, bindings):
-    stream = cuda.Stream()
+            result = self.outputs[3].cpu
+            result = result.reshape((-1, len(classes)+5))
+            result = np.expand_dims(result, axis=0)
+            result = torch.tensor(result)
+            inf_res.append(result)
 
-    with engine.create_execution_context() as context:
-        #async version
-        [cuda.memcpy_htod_async(inp.gpu, inp.cpu, stream) for inp in inputs]
-        stream.synchronize()
-        context.execute_async(args.batch, bindings, stream.handle, None)
-        stream.synchronize()
-        [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in outputs]
-        stream.synchronize()
+        return inf_res
 
-        # sync version
-        #cuda.memcpy_htod(in_gpu, inputs)
-        #context.execute(1, [int(in_gpu), int(out_gpu)])
-        #cuda.memcpy_dtoh(out_cpu, out_gpu)
+    def alloc_buf(self):
+        inputs = []
+        outputs = []
+        bindings = []
+        engine = self.model
+        input_size = trt.volume(engine.get_binding_shape(0))/3
+        input_size = int(input_size**(1/2))
 
-    return outputs[3].cpu
+        class HostDeviceMem(object):
+            def __init__(self, cpu_mem, gpu_mem):
+                self.cpu = cpu_mem
+                self.gpu = gpu_mem
+
+        for binding in engine:
+            size = trt.volume(engine.get_binding_shape(binding))
+            dtype = trt.nptype(engine.get_binding_dtype(binding))
+            cpu_mem = cuda.pagelocked_empty(size, dtype)
+            gpu_mem = cuda.mem_alloc(cpu_mem.nbytes)
+            bindings.append(int(gpu_mem))
+
+            if engine.binding_is_input(binding):
+                inputs.append(HostDeviceMem(cpu_mem, gpu_mem))
+            else:
+                outputs.append(HostDeviceMem(cpu_mem, gpu_mem))
+
+        self.inputs = inputs
+        self.outputs = outputs
+        self.bindings = bindings
+
+        return input_size
 
 
 def xywh2xyxy(x):
@@ -72,6 +104,9 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
     """Runs Non-Maximum Suppression (NMS) on inference results
     Returns:
          list of detections, on (n,6) tensor per image [xyxy, conf, cls]
+    Note:
+         Near future, we are considering embeds NMS into ONNX.
+         reference: https://github.com/NVIDIA-AI-IOT/yolov4_deepstream/blob/c4a6c2adc862afbae63e44855699ac41ebd9e6c5/tensorrt_yolov4/source/onnx_add_nms_plugin.py#L23
     """
 
     nc = prediction.shape[2] - 5  # number of classes
@@ -165,64 +200,73 @@ def preprocess_image(origin_image):
         #print('input shape : ' + str(input_image.shape))
     return input_image
 
+def print_result(result):
+    for i in range(1, len(res)):
+        result = np.array(res[i]).squeeze(axis=0)
+        result_image = origin_images[i].copy()
+        print("--------------- RESULT ---------------")
+        for j in range(result.shape[0]):
+            detected = str(classes[int(result[j][5])]).replace('‘', '').replace('’', '')
 
-if __name__ == "__main__":
+            confidence_str = str(result[j][4])
+            result_image = cv2.rectangle(result_image, (result[j][0], result[j][1]), (result[j][2], result[j][3]), (0, 0, 255), 1)
+            result_image = cv2.putText(result_image, str(detected), (int(result[j][0]), int(result[j][1]-1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
+
+            print("Detect " + str(j) + "(" + str(detected) + ")")
+            print("Coordinates : [" + str(result[j][0]) + ", " + str(result[j][1]) + ", " + str(result[j][2]) + ", " + str(result[j][3]) + "]")
+            print("Confidence : " + str(result[j][4]))
+            print("")
+        print("\n\n")
+
+if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', required=True, help='model path')
-    parser.add_argument('--image', required=True, help='image path')
+    parser.add_argument('--image_folder', required=True, help='image path')
     parser.add_argument('--conf_thres', required=False, default=0.25, help='confidence threshold')
     parser.add_argument('--iou_thres', required=False, default=0.45, help='iou threshold')
     parser.add_argument('--batch', required=False, default=1, help='batch size')
     parser.add_argument('--classes', required=True, help='yaml file with class info')
     args = parser.parse_args()
-
+    
+    # load class info(.yaml)
     with open(args.classes) as f:
         classes = yaml.safe_load(f)
         classes = classes['class_names']
 
-    runtime = trt.Runtime(TRT_LOGGER)
-    with open(args.model, 'rb') as f:
-        engine = runtime.deserialize_cuda_engine(f.read())
-    
-    # allocate buffer(cpu, gpu)
-    inputs, outputs, bindings, input_size = alloc_buf(engine)
+    # load model 
+    extension = os.path.splitext(args.model)[1]
+    if extension == '.trt':
+        model_wrapper = TRTWrapper(args.model)
+    input_size = model_wrapper.load_model()
 
-    # preprocessing image
-    origin_image = cv2.imread(args.image)
-    origin_image = cv2.resize(origin_image, dsize=(int(input_size), int(input_size)))
-    input_image = preprocess_image(origin_image)
-    inputs[0].cpu = input_image.ravel()
-    
+    # load and preprocess image
+    origin_images = []
+    input_images = []
+    for filename in os.listdir(args.image_folder):
+        img = cv2.imread(os.path.join(args.image_folder, filename))
+        img = cv2.resize(img, dsize=(input_size, input_size))
+        if img is not None:
+            origin_images.append(img)
+            input_images.append(preprocess_image(img))
+
     # inference
-    inf_res = inference(engine, inputs, outputs, bindings)
-    
-    # postprocessing inference result
-    inf_res = inf_res.reshape((-1, len(classes)+5))
-    inf_res = np.expand_dims(inf_res, axis=0)
-    inf_res = torch.tensor(inf_res)
-    inf_res = non_max_suppression(prediction=inf_res, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres), classes=None, agnostic=True)
+    inf_res = model_wrapper.inference(input_images)
     inf_res = torch.stack(inf_res)
     
+    # postprocess result(nms)
+    res = []
+    for i in range(len(inf_res)):
+        tmp = inf_res[i]
+        tmp = non_max_suppression(prediction=tmp, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres), classes=None, agnostic=True)
+        tmp = torch.stack(tmp)
+        res.append(tmp)
+
     # print result
-    result = np.array(inf_res).squeeze(axis=0)
-    result_image = origin_image.copy()
-    print("--------------- RESULT ---------------")
-    for i in range(result.shape[0]):
-        detected = str(classes[int(result[i][5])]).replace('‘', '').replace('’', '')
-
-        confidence_str = str(result[i][4])
-        result_image = cv2.rectangle(result_image, (result[i][0], result[i][1]), (result[i][2], result[i][3]), (0, 0, 255), 1)
-        #result_image = cv2.putText(result_image, str(result[i][4]), (result[i][0], result[i][1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
-        result_image = cv2.putText(result_image, str(detected), (int(result[i][0]), int(result[i][1]-1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
-
-        print("Detect " + str(i) + "(" + str(detected) + ")")
-        print("Coordinates : [" + str(result[i][0]) + ", " + str(result[i][1]) + ", " + str(result[i][2]) + ", " + str(result[i][3]) + "]")
-        print("Confidence : " + str(result[i][4]))
-        print("")
+    print_result(res)
 
 #    cv2.imwrite('result_image.jpg', result_image)
 
     # show result image
-    cv2.imshow("Result", result_image)
-    cv2.waitKey()
+#    cv2.imshow("Result", result_image)
+#    cv2.waitKey()
 
