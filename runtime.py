@@ -5,6 +5,7 @@ import pycuda.autoinit
 import pycuda.driver as cuda 
 import time
 import torch
+import tensorflow as tf
 import torchvision
 import argparse
 import yaml
@@ -14,7 +15,9 @@ import os
 class ModelWrapper():
     def __init__(self, model_path: str):
         self._model_path = model_path
-        self.model = None
+        self._model = None
+        self._inputs = None
+        self._outputs = None
 
     @property
     def model_path(self):
@@ -23,6 +26,30 @@ class ModelWrapper():
     @model_path.setter
     def model_path(self, value):
         self._model_path = value
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, value):
+        self._model = value
+
+    @property
+    def inputs(self):
+        return self._inputs
+    
+    @inputs.setter
+    def inputs(self, value):
+        self._inputs = value
+
+    @property
+    def outputs(self):
+        return self._outputs
+
+    @outputs.setter
+    def outputs(self, value):
+        self._outputs = value
 
     def load_model(self):
         """Set up model. please specify self.model """
@@ -38,8 +65,6 @@ class TRTWrapper(ModelWrapper):
         super(TRTWrapper, self).__init__(model_path)
         self._batch = batch
         self._bindings = None
-        self._inputs = None
-        self._outputs = None
 
     @property
     def batch(self):
@@ -56,22 +81,6 @@ class TRTWrapper(ModelWrapper):
     @bindings.setter
     def bindings(self, value):
         self._bindings = value
-
-    @property
-    def inputs(self):
-        return self._inputs
-
-    @inputs.setter
-    def inputs(self, value):
-        self._inputs = value
-
-    @property
-    def outputs(self):
-        return self._outputs
-
-    @outputs.setter
-    def outputs(self, value):
-        self._outputs = value
 
     def load_model(self):
         TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
@@ -134,6 +143,40 @@ class TRTWrapper(ModelWrapper):
 
         return input_size
 
+
+class TFLWrapper(ModelWrapper):
+    def __init__(self, model_path):
+        super(TFLWrapper, self).__init__(model_path)
+
+    def load_model(self):
+        interpreter = tf.lite.Interpreter(model_path=self.model_path)
+        self.model = interpreter
+
+        return self.alloc_buf()
+
+    def alloc_buf(self):
+        interpreter = self.model
+        interpreter.allocate_tensors()
+        self.inputs = interpreter.get_input_details()
+        self.outputs = interpreter.get_output_details()
+        
+        return self.inputs[0]['shape'][2]
+        
+    def inference(self, input_images):
+        inf_res = []
+        interpreter = self.model
+
+        for image in input_images:
+            interpreter.set_tensor(self.inputs[0]['index'], image)
+            interpreter.invoke()
+            result = interpreter.get_tensor(self.outputs[3]['index'])
+            result = result.reshape((-1, len(classes)+5))
+            result = np.expand_dims(result, axis=0)
+            result = torch.tensor(result)
+            inf_res.append(result)
+
+        return inf_res
+        
 
 def xywh2xyxy(x):
     # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
@@ -270,7 +313,7 @@ if __name__ == "__main__":
     parser.add_argument('--model', required=True, help='model path')
     parser.add_argument('--image_folder', required=True, help='image path')
     parser.add_argument('--conf_thres', required=False, default=0.25, help='confidence threshold')
-    parser.add_argument('--iou_thres', required=False, default=0.45, help='iou threshold')
+    parser.add_argument('--iou_thres', required=False, default=0.60, help='iou threshold')
     parser.add_argument('--batch', required=False, default=1, help='batch size')
     parser.add_argument('--classes', required=True, help='yaml file with class info')
     args = parser.parse_args()
@@ -284,6 +327,9 @@ if __name__ == "__main__":
     extension = os.path.splitext(args.model)[1]
     if extension == '.trt':
         model_wrapper = TRTWrapper(args.model, args.batch)
+    elif extension == '.tflite':
+        model_wrapper = TFLWrapper(args.model)
+
     input_size = model_wrapper.load_model()
 
     # load and preprocess image
