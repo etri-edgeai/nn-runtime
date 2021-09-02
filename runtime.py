@@ -10,6 +10,7 @@ import torchvision
 import argparse
 import yaml
 import os
+import sys
 
 
 class ModelWrapper():
@@ -18,6 +19,7 @@ class ModelWrapper():
         self._model = None
         self._inputs = None
         self._outputs = None
+        self._input_size = None
 
     @property
     def model_path(self):
@@ -50,6 +52,14 @@ class ModelWrapper():
     @outputs.setter
     def outputs(self, value):
         self._outputs = value
+
+    @property
+    def input_size(self):
+        return self._input_size
+
+    @input_size.setter
+    def input_size(self, value):
+        self._input_size = value
 
     def load_model(self):
         """Set up model. please specify self.model """
@@ -86,10 +96,13 @@ class TRTWrapper(ModelWrapper):
         TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
         runtime = trt.Runtime(TRT_LOGGER)
         with open(self.model_path, 'rb') as f:
-            engine = runtime.deserialize_cuda_engine(f.read())
-            self.model = engine
+            try:
+                engine = runtime.deserialize_cuda_engine(f.read())
+                self.model = engine
+            except:
+                sys.exit("Could not load model")
         
-        return self.alloc_buf()
+        self.alloc_buf()
 
     def inference(self, input_images):
         inf_res = []
@@ -140,8 +153,7 @@ class TRTWrapper(ModelWrapper):
         self.inputs = inputs
         self.outputs = outputs
         self.bindings = bindings
-
-        return input_size
+        self.input_size = input_size
 
 
 class TFLWrapper(ModelWrapper):
@@ -149,24 +161,29 @@ class TFLWrapper(ModelWrapper):
         super(TFLWrapper, self).__init__(model_path)
 
     def load_model(self):
-        interpreter = tf.lite.Interpreter(model_path=self.model_path)
-        self.model = interpreter
-
-        return self.alloc_buf()
+        try:
+            interpreter = tf.lite.Interpreter(model_path=self.model_path)
+            self.model = interpreter
+            self.alloc_buf()
+        except ValueError:
+            sys.exit("Could not load model")
 
     def alloc_buf(self):
         interpreter = self.model
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        
-        return self.inputs[0]['shape'][2]
+        self.input_size = self.inputs[0]['shape'][2]
         
     def inference(self, input_images):
         inf_res = []
         interpreter = self.model
 
         for image in input_images:
+            if self.inputs[0]['dtype'] == np.uint8:
+                input_scale, input_zero_point = self.inputs[0]["quantization"]
+                image = image / input_scale + input_zero_point
+            image = image.astype(self.inputs[0]['dtype'])
             interpreter.set_tensor(self.inputs[0]['index'], image)
             interpreter.invoke()
             result = interpreter.get_tensor(self.outputs[3]['index'])
@@ -321,7 +338,7 @@ if __name__ == "__main__":
     # load class info(.yaml)
     with open(args.classes) as f:
         classes = yaml.safe_load(f)
-        classes = classes['class_names']
+        classes = classes['names']
 
     # load model 
     extension = os.path.splitext(args.model)[1]
@@ -330,7 +347,8 @@ if __name__ == "__main__":
     elif extension == '.tflite':
         model_wrapper = TFLWrapper(args.model)
 
-    input_size = model_wrapper.load_model()
+    model_wrapper.load_model()
+    input_size = model_wrapper.input_size
 
     # load and preprocess image
     origin_images = []
