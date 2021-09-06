@@ -191,7 +191,7 @@ class TFLWrapper(ModelWrapper):
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        self.input_size = self.inputs[0]['shape'][2]
+        self.input_size = self.inputs[0]['shape'][2:] # NCHW
         
     def inference(self, input_images):
         inf_res = []
@@ -341,7 +341,7 @@ def print_result(result):
             print("")
         print("\n\n")
         cv2.imshow("result"+str(i), result_image)
-    cv2.waitKey()
+        cv2.waitKey()
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -356,7 +356,7 @@ if __name__ == "__main__":
     # load class info(.yaml)
     with open(args.classes) as f:
         classes = yaml.safe_load(f)
-        classes = classes['names']
+        classes = classes['class_names']
 
     # load model 
     extension = os.path.splitext(args.model)[1]
@@ -376,10 +376,12 @@ if __name__ == "__main__":
     input_images = []
     for filename in os.listdir(args.image_folder):
         img = cv2.imread(os.path.join(args.image_folder, filename))
-        img = cv2.resize(img, dsize=(input_size, input_size))
-        if img is not None:
-            origin_images.append(img)
-            input_images.append(preprocess_image(img))
+        # image load failed
+        if img is None:
+            continue
+        img = cv2.resize(img, dsize=tuple(input_size))
+        origin_images.append(img)
+        input_images.append(preprocess_image(img))
 
     # inference
     inf_res = model_wrapper.inference(input_images)
