@@ -173,7 +173,9 @@ class TFLWrapper(ModelWrapper):
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        self.input_size = self.inputs[0]['shape'][2]
+        input_shape = self.inputs[0]['shape']
+        # nchw, nhwc
+        self.input_size = input_shape[2:] if input_shape[1]==3 else input_shape[1:]
         
     def inference(self, input_images):
         inf_res = []
