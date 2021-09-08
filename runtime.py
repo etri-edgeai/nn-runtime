@@ -148,8 +148,7 @@ class TRTWrapper(ModelWrapper):
         outputs = []
         bindings = []
         engine = self.model
-        input_size = trt.volume(engine.get_binding_shape(0))/3
-        input_size = int(input_size**(1/2))
+        input_size = engine.get_binding_shape(0)[2:4] if engine.get_binding_shape(0)[1]==3 else input_shape[1:3]
 
         class HostDeviceMem(object):
             def __init__(self, cpu_mem, gpu_mem):
@@ -193,7 +192,7 @@ class TFLWrapper(ModelWrapper):
         self.outputs = interpreter.get_output_details()
         input_shape = self.inputs[0]['shape']
         # nchw, nhwc
-        self.input_size = input_shape[2:] if input_shape[1]==3 else input_shape[1:]
+        self.input_size = input_shape[2:4] if input_shape[1]==3 else input_shape[1:3]
         
     def inference(self, input_images):
         inf_res = []
