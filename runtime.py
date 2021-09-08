@@ -1,17 +1,35 @@
 import cv2
-import tensorrt as trt
 import numpy as np
-import pycuda.autoinit
-import pycuda.driver as cuda 
 import time
 import torch
-import tensorflow as tf
 import torchvision
 import argparse
 import yaml
 import os
 import sys
 
+# import tensorrt related
+try:
+    import tensorrt as trt
+    import pycuda.autoinit
+    import pycuda.driver as cuda 
+except ImportError:
+    print("Failed to load tensorrt, pycuda")
+    trt = None
+    cuda = None
+
+# import tflite related
+try:
+    import tflite_runtime.interpreter as tflite
+    print("Run tflite using tflite_runtime")
+except ImportError:
+    try:
+        import tensorflow as tf
+        tflite = tf.lite
+        print("Run tflite using tensorflow")
+    except ImportError:
+        tflite = None
+        print("Failed to load tf, tflite_runtime")
 
 class ModelWrapper():
     def __init__(self, model_path: str):
@@ -130,8 +148,7 @@ class TRTWrapper(ModelWrapper):
         outputs = []
         bindings = []
         engine = self.model
-        input_size = trt.volume(engine.get_binding_shape(0))/3
-        input_size = int(input_size**(1/2))
+        input_size = engine.get_binding_shape(0)[2:4] if engine.get_binding_shape(0)[1]==3 else input_shape[1:3]
 
         class HostDeviceMem(object):
             def __init__(self, cpu_mem, gpu_mem):
@@ -162,7 +179,7 @@ class TFLWrapper(ModelWrapper):
 
     def load_model(self):
         try:
-            interpreter = tf.lite.Interpreter(model_path=self.model_path)
+            interpreter = tflite.Interpreter(model_path=self.model_path)
             self.model = interpreter
             self.alloc_buf()
         except ValueError:
@@ -173,7 +190,9 @@ class TFLWrapper(ModelWrapper):
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        self.input_size = self.inputs[0]['shape'][2]
+        input_shape = self.inputs[0]['shape']
+        # nchw, nhwc
+        self.input_size = input_shape[2:4] if input_shape[1]==3 else input_shape[1:3]
         
     def inference(self, input_images):
         inf_res = []
@@ -323,7 +342,7 @@ def print_result(result):
             print("")
         print("\n\n")
         cv2.imshow("result"+str(i), result_image)
-    cv2.waitKey()
+        cv2.waitKey()
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -338,13 +357,16 @@ if __name__ == "__main__":
     # load class info(.yaml)
     with open(args.classes) as f:
         classes = yaml.safe_load(f)
-        classes = classes['names']
+        classes = classes['class_names']
 
     # load model 
     extension = os.path.splitext(args.model)[1]
+    assert extension in ['.trt', '.tflite'], f"Unsupported extension: {extension}, currently supports only either trt or tflite."
     if extension == '.trt':
+        assert trt and cuda, f"TensorRT, Pycuda lib loading failed."
         model_wrapper = TRTWrapper(args.model, args.batch)
     elif extension == '.tflite':
+        assert tflite, f"Loading lib for running tflite failed, either tensorflow or tflite_runtime is required."
         model_wrapper = TFLWrapper(args.model)
 
     model_wrapper.load_model()
@@ -355,10 +377,12 @@ if __name__ == "__main__":
     input_images = []
     for filename in os.listdir(args.image_folder):
         img = cv2.imread(os.path.join(args.image_folder, filename))
-        img = cv2.resize(img, dsize=(input_size, input_size))
-        if img is not None:
-            origin_images.append(img)
-            input_images.append(preprocess_image(img))
+        # image load failed
+        if img is None:
+            continue
+        img = cv2.resize(img, dsize=tuple(input_size))
+        origin_images.append(img)
+        input_images.append(preprocess_image(img))
 
     # inference
     inf_res = model_wrapper.inference(input_images)
