@@ -172,6 +172,7 @@ class TRTWrapper(ModelWrapper):
 class TFLWrapper(ModelWrapper):
     def __init__(self, model_path):
         super(TFLWrapper, self).__init__(model_path)
+        self.dims = "nhwc"
 
     def load_model(self):
         try:
@@ -188,7 +189,9 @@ class TFLWrapper(ModelWrapper):
         self.outputs = interpreter.get_output_details()
         input_shape = self.inputs[0]['shape']
         # nchw, nhwc
-        self.input_size = input_shape[2:4] if input_shape[1]==3 else input_shape[1:3]
+        # configure dims
+        self.dims = "nchw" if input_shape[1] == 3 else "nhwc"
+        self.input_size = input_shape[2:4] if self.dims=="nchw" else input_shape[1:3]
 
     def inference(self, input_images):
         inf_res = []
@@ -199,9 +202,12 @@ class TFLWrapper(ModelWrapper):
                 input_scale, input_zero_point = self.inputs[0]["quantization"]
                 image = image / input_scale + input_zero_point
             image = image.astype(self.inputs[0]['dtype'])
+            # reshape images depending on dims(nchw, nhwc)
+            if self.dims == "nchw":
+                image = image.transpose(0, 3, 1, 2)
             interpreter.set_tensor(self.inputs[0]['index'], image)
             interpreter.invoke()
-            result = interpreter.get_tensor(self.outputs[3]['index'])
+            result = interpreter.get_tensor(self.outputs[0]['index'] if len(self.outputs) == 1 else self.outputs[3]['index'])
             result = result.reshape((-1, len(classes)+5))
             result = np.expand_dims(result, axis=0)
             inf_res.append(result)
@@ -217,6 +223,19 @@ def xywh2xyxy(x):
     y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
+
+def unnormalize(input_shape, boxes):
+    """Kinda sloppy way of handling unnormalized, normalized model."""
+    if np.any(np.array(boxes)[:,:4] > 1.0):
+        return boxes
+    for box in boxes:
+        box[0] = int(box[0] * input_shape[0])
+        box[1] = int(box[1] * input_shape[1])
+        box[2] = int(box[2] * input_shape[0])
+        box[3] = int(box[3] * input_shape[1])
+    return boxes
+
+
 
 def compute_iou(box, boxes, box_area, boxes_area):
     # this is the iou of the box against all other boxes
@@ -277,6 +296,10 @@ def non_max_suppression(boxes, scores, threshold):
     return np.array(boxes_keep_index)
 
 def nms(prediction, conf_thres=0.25, iou_thres=0.45):
+    """Calculate nms.
+
+    Return: List[float]: List[w_topleft, h_topleft, w_bottomright, h_bottomright, confidence]
+    """
     prediction = prediction[prediction[..., 4] > conf_thres]
     boxes = xywh2xyxy(prediction[:, :4])
     res = non_max_suppression(boxes, prediction[:, 4], iou_thres)
@@ -299,7 +322,6 @@ def preprocess_image(origin_image):
     input_image = cv2.cvtColor(origin_image, cv2.COLOR_BGR2RGB)
     input_image = input_image.astype(np.float32)
     input_image /= 255.0
-    input_image = np.transpose(input_image, (2, 0, 1))
     if len(input_image.shape) == 3:
         input_image = np.expand_dims(input_image, 0)
     return input_image
@@ -371,6 +393,7 @@ if __name__ == "__main__":
     for i in range(len(inf_res)):
         tmp = inf_res[i]
         tmp = nms(prediction=tmp, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres))
+        tmp = unnormalize(input_size, tmp)
         res.append(tmp)
 
     # print result
