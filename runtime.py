@@ -123,21 +123,28 @@ class TRTWrapper(ModelWrapper):
     def inference(self, input_images):
         inf_res = []
         stream = cuda.Stream()
+        avg_time = 0
 
         for image in input_images:
             image = image.transpose(0, 3, 1, 2)
             self.inputs[0].cpu = image.ravel()
+
             with self.model.create_execution_context() as context:
                 #async version
                 [cuda.memcpy_htod_async(inp.gpu, inp.cpu, stream) for inp in self.inputs]
+                start_time = time.time()
                 context.execute_async(self.batch, self.bindings, stream.handle, None)
+                end_time = time.time() - start_time
+                avg_time += end_time
                 [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
                 stream.synchronize()
 
             result = self.outputs[0].cpu if self.model.num_bindings == 1 else self.outputs[3].cpu
             result = result.reshape((-1, len(classes)+5))
-            inf_res.append(result)
-        
+            inf_res.append(result.copy())
+
+        avg_time /= len(inf_res)
+        print(f"{avg_time:.5f} sec per image (inferece)")
         return inf_res
 
     def alloc_buf(self):
@@ -204,6 +211,7 @@ class TFLWrapper(ModelWrapper):
     def inference(self, input_images):
         inf_res = []
         interpreter = self.model
+        avg_time = 0
 
         for image in input_images:
             if self.inputs[0]['dtype'] == np.uint8:
@@ -214,12 +222,18 @@ class TFLWrapper(ModelWrapper):
             if self.dims == "nchw":
                 image = image.transpose(0, 3, 1, 2)
             interpreter.set_tensor(self.inputs[0]['index'], image)
+            start_time = time.time()
             interpreter.invoke()
+            end_time = time.time() - start_time
+            avg_time += end_time
+            
             result = interpreter.get_tensor(self.outputs[0]['index'] if len(self.outputs) == 1 else self.outputs[3]['index'])
             result = result.reshape((-1, len(classes)+5))
             result = np.expand_dims(result, axis=0)
             inf_res.append(result)
             
+        avg_time /= len(inf_res)
+        print(f"{avg_time:.5f} sec per image (inference)")
         return inf_res
         
 
@@ -328,13 +342,55 @@ def nms(prediction, conf_thres=0.25, iou_thres=0.45):
 
     return result_boxes
 
-def preprocess_image(origin_image):
-    input_image = cv2.cvtColor(origin_image, cv2.COLOR_BGR2RGB)
-    input_image = input_image.astype(np.float32)
-    input_image /= 255.0
-    if len(input_image.shape) == 3:
-        input_image = np.expand_dims(input_image, 0)
-    return input_image
+def preprocess_image(raw_bgr_image, input_size):
+    """
+    Description:
+        Converting BGR image to RGB,
+        Resizing and padding it to target size,
+        Normalizing to [0, 1]
+        Transforming to NCHW format
+    Argument:
+        raw_bgr_image: a numpy array from cv2 (BGR) (H, W, C)
+    Return:
+        preprocessed_image: preprocessed image (1, C, resized_H, resized_W)
+        original_image: the original image (H, W, C)
+        origin_h: height of the original image
+        origin_w: width of the origianl image
+    """
+
+    original_image = raw_bgr_image
+    origin_h, origin_w, origin_c = original_image.shape
+    image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+    # Calculate widht and height and paddings
+    r_w = input_size[1] / origin_w
+    r_h = input_size[0] / origin_h
+    if r_h > r_w:
+        tw = input_size[1]
+        th = int(r_w *  origin_h)
+        tx1 = tx2 = 0
+        ty1 = int((input_size[0] - th) / 2)
+        ty2 = input_size[0] - th - ty1
+    else:
+        tw = int(r_h * origin_w)
+        th = input_size[0]
+        tx1 = int((input_size[1] - tw) / 2)
+        tx2 = input_size[1] - tw - tx1
+        ty1 = ty2 = 0
+    # Resize the image with long side while maintaining ratio
+    image = cv2.resize(image, (tw, th))
+    # Pad the short side with (128,128,128)
+    image = cv2.copyMakeBorder(
+        image, ty1, ty2, tx1, tx2, cv2.BORDER_CONSTANT, (128, 128, 128)
+    )
+    image = image.astype(np.float32)
+    # Normalize to [0,1]
+    image /= 255.0
+    # CHW to NCHW format
+    image = np.expand_dims(image, axis=0)
+    # Convert the image to row-major order, also known as "C order":
+    preprocessed_image = np.ascontiguousarray(image)
+
+    return preprocessed_image
 
 def print_result(result):
     for i in range(1, len(result)):
@@ -396,9 +452,8 @@ if __name__ == "__main__":
         # image load failed
         if img is None:
             continue
-        img = cv2.resize(img, dsize=tuple(input_size[::-1])) # resize((w, h))
         origin_images.append(img)
-        input_images.append(preprocess_image(img))
+        input_images.append(preprocess_image(img, input_size))
 
     # inference
     inf_res = model_wrapper.inference(input_images)
