@@ -172,7 +172,15 @@ class TRTWrapper(ModelWrapper):
 class TFLWrapper(ModelWrapper):
     def __init__(self, model_path):
         super(TFLWrapper, self).__init__(model_path)
-        self.dims = "nhwc"
+        self._dims = "nhwc"
+
+    @property
+    def dims(self):
+        return self._dims
+
+    @dims.setter
+    def dims(self, value):
+        self._dims = value
 
     def load_model(self):
         try:
