@@ -187,8 +187,7 @@ class TFLWrapper(ModelWrapper):
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        input_shape = self.inputs[0]['shape']
-        # nchw, nhwc
+        input_shape = self.inputs[0]['shape'] # n h w c
         # configure dims
         self.dims = "nchw" if input_shape[1] == 3 else "nhwc"
         self.input_size = input_shape[2:4] if self.dims=="nchw" else input_shape[1:3]
@@ -224,15 +223,19 @@ def xywh2xyxy(x):
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
 
-def unnormalize(input_shape, boxes):
+def normalize(input_shape, boxes):
     """Kinda sloppy way of handling unnormalized, normalized model."""
-    if np.any(np.array(boxes)[:,:4] > 1.0):
+    if not boxes:
         return boxes
+    np_boxes = np.array(boxes)
+    if np.all(np_boxes[:,:4] <= 1.0):
+        return boxes
+    # normalize result
     for box in boxes:
-        box[0] = int(box[0] * input_shape[0])
-        box[1] = int(box[1] * input_shape[1])
-        box[2] = int(box[2] * input_shape[0])
-        box[3] = int(box[3] * input_shape[1])
+        box[0] /= input_shape[0]
+        box[1] /= input_shape[1]
+        box[2] /= input_shape[0]
+        box[3] /= input_shape[1]
     return boxes
 
 
@@ -330,15 +333,19 @@ def print_result(result):
     for i in range(1, len(result)):
         res = np.array(result[i])
         result_image = origin_images[i].copy()
+        h, w = result_image.shape[:2]
         print("--------------- RESULT ---------------")
         for j in range(len(result[i])):
             detected = str(classes[int(res[j][5])]).replace('‘', '').replace('’', '')
-
             confidence_str = str(res[j][4])
-            result_image = cv2.rectangle(result_image, (int(res[j][0]), int(res[j][1])), (int(res[j][2]), int(res[j][3])), (0, 0, 255), 1)
-            result_image = cv2.putText(result_image, str(detected), (int(res[j][0]), int(res[j][1]-1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
+            x1 = int(res[j][0] * w)
+            y1 = int(res[j][1] * h)
+            x2 = int(res[j][2] * w)
+            y2 = int(res[j][3] * h)
+            result_image = cv2.rectangle(result_image, (x1, y1), (x2, y2), (0, 0, 255), 1)
+            result_image = cv2.putText(result_image, str(detected), (x1, y1-1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
             print("Detect " + str(j) + "(" + str(detected) + ")")
-            print("Coordinates : [{:.5f}, {:.5f}, {:.5f}, {:.5f}]".format(res[j][0], res[j][1], res[j][2], res[j][3]))
+            print("Coordinates : [{:.5f}, {:.5f}, {:.5f}, {:.5f}]".format(x1, y1, x2, y2))
             print("Confidence : {:.7f}".format(res[j][4]))
             print("")
         print("\n\n")
@@ -381,7 +388,7 @@ if __name__ == "__main__":
         # image load failed
         if img is None:
             continue
-        img = cv2.resize(img, dsize=tuple(input_size))
+        img = cv2.resize(img, dsize=tuple(input_size[::-1])) # resize((w, h))
         origin_images.append(img)
         input_images.append(preprocess_image(img))
 
@@ -393,7 +400,7 @@ if __name__ == "__main__":
     for i in range(len(inf_res)):
         tmp = inf_res[i]
         tmp = nms(prediction=tmp, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres))
-        tmp = unnormalize(input_size, tmp)
+        tmp = normalize(input_size, tmp)
         res.append(tmp)
 
     # print result
