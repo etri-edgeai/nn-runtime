@@ -125,6 +125,7 @@ class TRTWrapper(ModelWrapper):
         stream = cuda.Stream()
 
         for image in input_images:
+            image = image.transpose(0, 3, 1, 2)
             self.inputs[0].cpu = image.ravel()
             with self.model.create_execution_context() as context:
                 #async version
@@ -133,7 +134,7 @@ class TRTWrapper(ModelWrapper):
                 [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
                 stream.synchronize()
 
-            result = self.outputs[3].cpu
+            result = self.outputs[0].cpu if self.model.num_bindings == 1 else self.outputs[3].cpu
             result = result.reshape((-1, len(classes)+5))
             inf_res.append(result)
         
@@ -242,8 +243,6 @@ def unnormalize(input_shape, boxes):
         box[2] = int(box[2] * input_shape[0])
         box[3] = int(box[3] * input_shape[1])
     return boxes
-
-
 
 def compute_iou(box, boxes, box_area, boxes_area):
     # this is the iou of the box against all other boxes
