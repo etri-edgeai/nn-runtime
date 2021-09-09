@@ -125,6 +125,7 @@ class TRTWrapper(ModelWrapper):
         stream = cuda.Stream()
 
         for image in input_images:
+            image = image.transpose(0, 3, 1, 2)
             self.inputs[0].cpu = image.ravel()
             with self.model.create_execution_context() as context:
                 #async version
@@ -133,7 +134,7 @@ class TRTWrapper(ModelWrapper):
                 [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
                 stream.synchronize()
 
-            result = self.outputs[3].cpu
+            result = self.outputs[0].cpu if self.model.num_bindings == 1 else self.outputs[3].cpu
             result = result.reshape((-1, len(classes)+5))
             inf_res.append(result)
         
@@ -172,7 +173,15 @@ class TRTWrapper(ModelWrapper):
 class TFLWrapper(ModelWrapper):
     def __init__(self, model_path):
         super(TFLWrapper, self).__init__(model_path)
-        self.dims = "nhwc"
+        self._dims = "nhwc"
+
+    @property
+    def dims(self):
+        return self._dims
+
+    @dims.setter
+    def dims(self, value):
+        self._dims = value
 
     def load_model(self):
         try:
@@ -224,7 +233,7 @@ def xywh2xyxy(x):
     return y
 
 def normalize(input_shape, boxes):
-    """Kinda sloppy way of handling unnormalized, normalized model."""
+    """Normalize results in case model returns unnormalized results."""
     if not boxes:
         return boxes
     np_boxes = np.array(boxes)
@@ -237,8 +246,6 @@ def normalize(input_shape, boxes):
         box[2] /= input_shape[0]
         box[3] /= input_shape[1]
     return boxes
-
-
 
 def compute_iou(box, boxes, box_area, boxes_area):
     # this is the iou of the box against all other boxes
@@ -338,6 +345,7 @@ def print_result(result):
         for j in range(len(result[i])):
             detected = str(classes[int(res[j][5])]).replace('‘', '').replace('’', '')
             confidence_str = str(res[j][4])
+            # unnormalize depending on the visualizing image size
             x1 = int(res[j][0] * w)
             y1 = int(res[j][1] * h)
             x2 = int(res[j][2] * w)
