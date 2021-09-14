@@ -1,22 +1,10 @@
 import cv2
 import numpy as np
 import time
-import torch
-import torchvision
 import argparse
 import yaml
 import os
 import sys
-
-# import tensorrt related
-try:
-    import tensorrt as trt
-    import pycuda.autoinit
-    import pycuda.driver as cuda 
-except ImportError:
-    print("Failed to load tensorrt, pycuda")
-    trt = None
-    cuda = None
 
 # import tflite related
 try:
@@ -30,6 +18,16 @@ except ImportError:
     except ImportError:
         tflite = None
         print("Failed to load tf, tflite_runtime")
+
+# import tensorrt related
+try:
+    import tensorrt as trt
+    import pycuda.autoinit
+    import pycuda.driver as cuda
+except ImportError:
+    print("Failed to load tensorrt, pycuda")
+    trt = None
+    cuda = None
 
 class ModelWrapper():
     def __init__(self, model_path: str):
@@ -127,6 +125,7 @@ class TRTWrapper(ModelWrapper):
         stream = cuda.Stream()
 
         for image in input_images:
+            image = image.transpose(0, 3, 1, 2)
             self.inputs[0].cpu = image.ravel()
             with self.model.create_execution_context() as context:
                 #async version
@@ -135,12 +134,10 @@ class TRTWrapper(ModelWrapper):
                 [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
                 stream.synchronize()
 
-            result = self.outputs[3].cpu
+            result = self.outputs[0].cpu if self.model.num_bindings == 1 else self.outputs[3].cpu
             result = result.reshape((-1, len(classes)+5))
-            result = np.expand_dims(result, axis=0)
-            result = torch.tensor(result)
             inf_res.append(result)
-
+        
         return inf_res
 
     def alloc_buf(self):
@@ -176,10 +173,19 @@ class TRTWrapper(ModelWrapper):
 class TFLWrapper(ModelWrapper):
     def __init__(self, model_path):
         super(TFLWrapper, self).__init__(model_path)
+        self._dims = "nhwc"
+
+    @property
+    def dims(self):
+        return self._dims
+
+    @dims.setter
+    def dims(self, value):
+        self._dims = value
 
     def load_model(self):
         try:
-            interpreter = tflite.Interpreter(model_path=self.model_path)
+            interpreter = tf.lite.Interpreter(model_path=self.model_path)
             self.model = interpreter
             self.alloc_buf()
         except ValueError:
@@ -190,10 +196,11 @@ class TFLWrapper(ModelWrapper):
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        input_shape = self.inputs[0]['shape']
-        # nchw, nhwc
-        self.input_size = input_shape[2:4] if input_shape[1]==3 else input_shape[1:3]
-        
+        input_shape = self.inputs[0]['shape'] # n h w c
+        # configure dims
+        self.dims = "nchw" if input_shape[1] == 3 else "nhwc"
+        self.input_size = input_shape[2:4] if self.dims=="nchw" else input_shape[1:3]
+
     def inference(self, input_images):
         inf_res = []
         interpreter = self.model
@@ -203,142 +210,151 @@ class TFLWrapper(ModelWrapper):
                 input_scale, input_zero_point = self.inputs[0]["quantization"]
                 image = image / input_scale + input_zero_point
             image = image.astype(self.inputs[0]['dtype'])
+            # reshape images depending on dims(nchw, nhwc)
+            if self.dims == "nchw":
+                image = image.transpose(0, 3, 1, 2)
             interpreter.set_tensor(self.inputs[0]['index'], image)
             interpreter.invoke()
-            result = interpreter.get_tensor(self.outputs[3]['index'])
+            result = interpreter.get_tensor(self.outputs[0]['index'] if len(self.outputs) == 1 else self.outputs[3]['index'])
             result = result.reshape((-1, len(classes)+5))
             result = np.expand_dims(result, axis=0)
-            result = torch.tensor(result)
             inf_res.append(result)
-
+            
         return inf_res
         
 
 def xywh2xyxy(x):
     # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
-    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y = np.copy(x)
     y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
     y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
     y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
 
-def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
-                        labels=(), max_det=300):
-    """Runs Non-Maximum Suppression (NMS) on inference results
-    Returns:
-         list of detections, on (n,6) tensor per image [xyxy, conf, cls]
-    Note:
-         Near future, we are considering embeds NMS into ONNX.
-         reference: https://github.com/NVIDIA-AI-IOT/yolov4_deepstream/blob/c4a6c2adc862afbae63e44855699ac41ebd9e6c5/tensorrt_yolov4/source/onnx_add_nms_plugin.py#L23
+def normalize(input_shape, boxes):
+    """Normalize results in case model returns unnormalized results."""
+    if not boxes:
+        return boxes
+    np_boxes = np.array(boxes)
+    if np.all(np_boxes[:,:4] <= 1.0):
+        return boxes
+    # normalize result
+    for box in boxes:
+        box[0] /= input_shape[0]
+        box[1] /= input_shape[1]
+        box[2] /= input_shape[0]
+        box[3] /= input_shape[1]
+    return boxes
+
+def compute_iou(box, boxes, box_area, boxes_area):
+    # this is the iou of the box against all other boxes
+    assert boxes.shape[0] == boxes_area.shape[0]
+    # get all the origin-ys
+    # push up all the lower origin-xs, while keeping the higher origin-xs
+    ys1 = np.maximum(box[0], boxes[:, 0])
+    # get all the origin-xs
+    # push right all the lower origin-xs, while keeping higher origin-xs
+    xs1 = np.maximum(box[1], boxes[:, 1])
+    # get all the target-ys
+    # pull down all the higher target-ys, while keeping lower origin-ys
+    ys2 = np.minimum(box[2], boxes[:, 2])
+    # get all the target-xs
+    # pull left all the higher target-xs, while keeping lower target-xs
+    xs2 = np.minimum(box[3], boxes[:, 3])
+    # each intersection area is calculated by the
+    # pulled target-x minus the pushed origin-x
+    # multiplying
+    # pulled target-y minus the pushed origin-y
+    # we ignore areas where the intersection side would be negative
+    # this is done by using maxing the side length by 0
+    intersections = np.maximum(ys2 - ys1, 0) * np.maximum(xs2 - xs1, 0)
+    # each union is then the box area
+    # added to each other box area minusing their intersection calculated above
+    unions = box_area + boxes_area - intersections
+    # element wise division
+    # if the intersection is 0, then their ratio is 0
+    ious = intersections / unions
+    return ious
+
+def non_max_suppression(boxes, scores, threshold):
+    assert boxes.shape[0] == scores.shape[0]
+    # bottom-left origin
+    ys1 = boxes[:, 0]
+    xs1 = boxes[:, 1]
+    # top-right target
+    ys2 = boxes[:, 2]
+    xs2 = boxes[:, 3]
+    # box coordinate ranges are inclusive-inclusive
+    areas = (ys2 - ys1) * (xs2 - xs1)
+    scores_indexes = scores.argsort().tolist()
+    boxes_keep_index = []
+    while len(scores_indexes):
+        index = scores_indexes.pop()
+        boxes_keep_index.append(index)
+        if not len(scores_indexes):
+            break
+        ious = compute_iou(boxes[index], boxes[scores_indexes], areas[index], areas[scores_indexes])
+        
+        filtered_indexes = np.where(ious > threshold)[0]
+        # if there are no more scores_index
+        # then we should pop it
+        scores_indexes = [
+            v for (i, v) in enumerate(scores_indexes)
+            if i not in filtered_indexes
+        ]
+    return np.array(boxes_keep_index)
+
+def nms(prediction, conf_thres=0.25, iou_thres=0.45):
+    """Calculate nms.
+
+    Return: List[float]: List[w_topleft, h_topleft, w_bottomright, h_bottomright, confidence]
     """
+    prediction = prediction[prediction[..., 4] > conf_thres]
+    boxes = xywh2xyxy(prediction[:, :4])
+    res = non_max_suppression(boxes, prediction[:, 4], iou_thres)
+    
+    result_boxes = []
+    for r in res:
+        tmp = np.zeros(6)
+        j = prediction[r, 5:].argmax()
+        tmp[0] = boxes[r][0].item()
+        tmp[1] = boxes[r][1].item()
+        tmp[2] = boxes[r][2].item()
+        tmp[3] = boxes[r][3].item()
+        tmp[4] = prediction[r][4].item()
+        tmp[5] = j
+        result_boxes.append(tmp)
 
-    nc = prediction.shape[2] - 5  # number of classes
-    xc = prediction[..., 4] > conf_thres  # candidates
-
-    # Checks
-    assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0'
-    assert 0 <= iou_thres <= 1, f'Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0'
-
-    # Settings
-    min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
-    max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
-    time_limit = 10.0  # seconds to quit after
-    redundant = True  # require redundant detections
-    multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
-    merge = False  # use merge-NMS
-
-    t = time.time()
-    output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
-    for xi, x in enumerate(prediction):  # image index, image inference
-        # Apply constraints
-        x = x[xc[xi]]  # confidence
-
-        # Cat apriori labels if autolabelling
-        if labels and len(labels[xi]):
-            l = labels[xi]
-            v = torch.zeros((len(l), nc + 5), device=x.device)
-            v[:, :4] = l[:, 1:5]  # box
-            v[:, 4] = 1.0  # conf
-            v[range(len(l)), l[:, 0].long() + 5] = 1.0  # cls
-            x = torch.cat((x, v), 0)
-
-        # If none remain process next image
-        if not x.shape[0]:
-            continue
-
-        # Compute conf
-        x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
-
-        # Box (center x, center y, width, height) to (x1, y1, x2, y2)
-        box = xywh2xyxy(x[:, :4])
-
-        # Detections matrix nx6 (xyxy, conf, cls)
-        if multi_label:
-            i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
-            x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
-        else:  # best class only
-            conf, j = x[:, 5:].max(1, keepdim=True)
-            x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
-
-        # Filter by class
-        if classes is not None:
-            x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
-
-        # Check shape
-        n = x.shape[0]  # number of boxes
-        if not n:  # no boxes
-            continue
-        elif n > max_nms:  # excess boxes
-            x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
-
-        # Batched NMS
-        c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
-        boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
-        if i.shape[0] > max_det:  # limit detections
-            i = i[:max_det]
-        if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
-            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
-            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
-            weights = iou * scores[None]  # box weights
-            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
-            if redundant:
-                i = i[iou.sum(1) > 1]  # require redundancy
-
-        output[xi] = x[i]
-        if (time.time() - t) > time_limit:
-            print(f'WARNING: NMS time limit {time_limit}s exceeded')
-            break  # time limit exceeded
-
-    return output
-
+    return result_boxes
 
 def preprocess_image(origin_image):
     input_image = cv2.cvtColor(origin_image, cv2.COLOR_BGR2RGB)
     input_image = input_image.astype(np.float32)
     input_image /= 255.0
-    input_image = np.transpose(input_image, (2, 0, 1))
     if len(input_image.shape) == 3:
         input_image = np.expand_dims(input_image, 0)
-        #print('input shape : ' + str(input_image.shape))
     return input_image
 
 def print_result(result):
-    for i in range(1, len(res)):
-        result = np.array(res[i]).squeeze(axis=0)
+    for i in range(1, len(result)):
+        res = np.array(result[i])
         result_image = origin_images[i].copy()
+        h, w = result_image.shape[:2]
         print("--------------- RESULT ---------------")
-        for j in range(result.shape[0]):
-            detected = str(classes[int(result[j][5])]).replace('‘', '').replace('’', '')
-
-            confidence_str = str(result[j][4])
-            result_image = cv2.rectangle(result_image, (result[j][0], result[j][1]), (result[j][2], result[j][3]), (0, 0, 255), 1)
-            result_image = cv2.putText(result_image, str(detected), (int(result[j][0]), int(result[j][1]-1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
-
+        for j in range(len(result[i])):
+            detected = str(classes[int(res[j][5])]).replace('‘', '').replace('’', '')
+            confidence_str = str(res[j][4])
+            # unnormalize depending on the visualizing image size
+            x1 = int(res[j][0] * w)
+            y1 = int(res[j][1] * h)
+            x2 = int(res[j][2] * w)
+            y2 = int(res[j][3] * h)
+            result_image = cv2.rectangle(result_image, (x1, y1), (x2, y2), (0, 0, 255), 1)
+            result_image = cv2.putText(result_image, str(detected), (x1, y1-1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
             print("Detect " + str(j) + "(" + str(detected) + ")")
-            print("Coordinates : [" + str(result[j][0]) + ", " + str(result[j][1]) + ", " + str(result[j][2]) + ", " + str(result[j][3]) + "]")
-            print("Confidence : " + str(result[j][4]))
+            print("Coordinates : [{:.5f}, {:.5f}, {:.5f}, {:.5f}]".format(x1, y1, x2, y2))
+            print("Confidence : {:.7f}".format(res[j][4]))
             print("")
         print("\n\n")
         cv2.imshow("result"+str(i), result_image)
@@ -380,20 +396,19 @@ if __name__ == "__main__":
         # image load failed
         if img is None:
             continue
-        img = cv2.resize(img, dsize=tuple(input_size))
+        img = cv2.resize(img, dsize=tuple(input_size[::-1])) # resize((w, h))
         origin_images.append(img)
         input_images.append(preprocess_image(img))
 
     # inference
     inf_res = model_wrapper.inference(input_images)
-    inf_res = torch.stack(inf_res)
     
     # postprocess result(nms)
     res = []
     for i in range(len(inf_res)):
         tmp = inf_res[i]
-        tmp = non_max_suppression(prediction=tmp, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres), classes=None, agnostic=True)
-        tmp = torch.stack(tmp)
+        tmp = nms(prediction=tmp, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres))
+        tmp = normalize(input_size, tmp)
         res.append(tmp)
 
     # print result
