@@ -125,6 +125,7 @@ class TRTWrapper(ModelWrapper):
         stream = cuda.Stream()
 
         for image in input_images:
+            image = image.transpose(0, 3, 1, 2)
             self.inputs[0].cpu = image.ravel()
             with self.model.create_execution_context() as context:
                 #async version
@@ -133,7 +134,7 @@ class TRTWrapper(ModelWrapper):
                 [cuda.memcpy_dtoh_async(out.cpu, out.gpu, stream) for out in self.outputs]
                 stream.synchronize()
 
-            result = self.outputs[3].cpu
+            result = self.outputs[0].cpu if self.model.num_bindings == 1 else self.outputs[3].cpu
             result = result.reshape((-1, len(classes)+5))
             inf_res.append(result)
         
@@ -172,6 +173,15 @@ class TRTWrapper(ModelWrapper):
 class TFLWrapper(ModelWrapper):
     def __init__(self, model_path):
         super(TFLWrapper, self).__init__(model_path)
+        self._dims = "nhwc"
+
+    @property
+    def dims(self):
+        return self._dims
+
+    @dims.setter
+    def dims(self, value):
+        self._dims = value
 
     def load_model(self):
         try:
@@ -186,9 +196,10 @@ class TFLWrapper(ModelWrapper):
         interpreter.allocate_tensors()
         self.inputs = interpreter.get_input_details()
         self.outputs = interpreter.get_output_details()
-        input_shape = self.inputs[0]['shape']
-        # nchw, nhwc
-        self.input_size = input_shape[2:4] if input_shape[1]==3 else input_shape[1:3]
+        input_shape = self.inputs[0]['shape'] # n h w c
+        # configure dims
+        self.dims = "nchw" if input_shape[1] == 3 else "nhwc"
+        self.input_size = input_shape[2:4] if self.dims=="nchw" else input_shape[1:3]
 
     def inference(self, input_images):
         inf_res = []
@@ -199,9 +210,12 @@ class TFLWrapper(ModelWrapper):
                 input_scale, input_zero_point = self.inputs[0]["quantization"]
                 image = image / input_scale + input_zero_point
             image = image.astype(self.inputs[0]['dtype'])
+            # reshape images depending on dims(nchw, nhwc)
+            if self.dims == "nchw":
+                image = image.transpose(0, 3, 1, 2)
             interpreter.set_tensor(self.inputs[0]['index'], image)
             interpreter.invoke()
-            result = interpreter.get_tensor(self.outputs[3]['index'])
+            result = interpreter.get_tensor(self.outputs[0]['index'] if len(self.outputs) == 1 else self.outputs[3]['index'])
             result = result.reshape((-1, len(classes)+5))
             result = np.expand_dims(result, axis=0)
             inf_res.append(result)
@@ -217,6 +231,21 @@ def xywh2xyxy(x):
     y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
+
+def normalize(input_shape, boxes):
+    """Normalize results in case model returns unnormalized results."""
+    if not boxes:
+        return boxes
+    np_boxes = np.array(boxes)
+    if np.all(np_boxes[:,:4] <= 1.0):
+        return boxes
+    # normalize result
+    for box in boxes:
+        box[0] /= input_shape[0]
+        box[1] /= input_shape[1]
+        box[2] /= input_shape[0]
+        box[3] /= input_shape[1]
+    return boxes
 
 def compute_iou(box, boxes, box_area, boxes_area):
     # this is the iou of the box against all other boxes
@@ -277,6 +306,10 @@ def non_max_suppression(boxes, scores, threshold):
     return np.array(boxes_keep_index)
 
 def nms(prediction, conf_thres=0.25, iou_thres=0.45):
+    """Calculate nms.
+
+    Return: List[float]: List[w_topleft, h_topleft, w_bottomright, h_bottomright, confidence]
+    """
     prediction = prediction[prediction[..., 4] > conf_thres]
     boxes = xywh2xyxy(prediction[:, :4])
     res = non_max_suppression(boxes, prediction[:, 4], iou_thres)
@@ -299,7 +332,6 @@ def preprocess_image(origin_image):
     input_image = cv2.cvtColor(origin_image, cv2.COLOR_BGR2RGB)
     input_image = input_image.astype(np.float32)
     input_image /= 255.0
-    input_image = np.transpose(input_image, (2, 0, 1))
     if len(input_image.shape) == 3:
         input_image = np.expand_dims(input_image, 0)
     return input_image
@@ -308,15 +340,20 @@ def print_result(result):
     for i in range(1, len(result)):
         res = np.array(result[i])
         result_image = origin_images[i].copy()
+        h, w = result_image.shape[:2]
         print("--------------- RESULT ---------------")
         for j in range(len(result[i])):
             detected = str(classes[int(res[j][5])]).replace('‘', '').replace('’', '')
-
             confidence_str = str(res[j][4])
-            result_image = cv2.rectangle(result_image, (int(res[j][0]), int(res[j][1])), (int(res[j][2]), int(res[j][3])), (0, 0, 255), 1)
-            result_image = cv2.putText(result_image, str(detected), (int(res[j][0]), int(res[j][1]-1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
+            # unnormalize depending on the visualizing image size
+            x1 = int(res[j][0] * w)
+            y1 = int(res[j][1] * h)
+            x2 = int(res[j][2] * w)
+            y2 = int(res[j][3] * h)
+            result_image = cv2.rectangle(result_image, (x1, y1), (x2, y2), (0, 0, 255), 1)
+            result_image = cv2.putText(result_image, str(detected), (x1, y1-1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
             print("Detect " + str(j) + "(" + str(detected) + ")")
-            print("Coordinates : [{:.5f}, {:.5f}, {:.5f}, {:.5f}]".format(res[j][0], res[j][1], res[j][2], res[j][3]))
+            print("Coordinates : [{:.5f}, {:.5f}, {:.5f}, {:.5f}]".format(x1, y1, x2, y2))
             print("Confidence : {:.7f}".format(res[j][4]))
             print("")
         print("\n\n")
@@ -359,7 +396,7 @@ if __name__ == "__main__":
         # image load failed
         if img is None:
             continue
-        img = cv2.resize(img, dsize=tuple(input_size))
+        img = cv2.resize(img, dsize=tuple(input_size[::-1])) # resize((w, h))
         origin_images.append(img)
         input_images.append(preprocess_image(img))
 
@@ -371,6 +408,7 @@ if __name__ == "__main__":
     for i in range(len(inf_res)):
         tmp = inf_res[i]
         tmp = nms(prediction=tmp, conf_thres=float(args.conf_thres), iou_thres=float(args.iou_thres))
+        tmp = normalize(input_size, tmp)
         res.append(tmp)
 
     # print result
