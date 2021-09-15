@@ -361,7 +361,7 @@ def preprocess_image(raw_bgr_image, input_size):
     original_image = raw_bgr_image
     origin_h, origin_w, origin_c = original_image.shape
     image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-    # Calculate widht and height and paddings
+    # Calculate width and height and paddings
     r_w = input_size[1] / origin_w
     r_h = input_size[0] / origin_h
     if r_h > r_w:
@@ -392,28 +392,28 @@ def preprocess_image(raw_bgr_image, input_size):
 
     return preprocessed_image
 
-def print_result(result):
-    for i in range(1, len(result)):
-        res = np.array(result[i])
-        result_image = origin_images[i].copy()
+def print_result(input_images, result_label):
+    for i, labels in enumerate(result_label):
+        labels_arr = np.array(labels)
+        result_image = input_images[i].copy()[0]
         h, w = result_image.shape[:2]
         print("--------------- RESULT ---------------")
-        for j in range(len(result[i])):
-            detected = str(classes[int(res[j][5])]).replace('‘', '').replace('’', '')
-            confidence_str = str(res[j][4])
+        for j, label in enumerate(labels_arr):
+            detected = str(classes[int(label[5])]).replace('‘', '').replace('’', '')
+            confidence_str = str(label[4])
             # unnormalize depending on the visualizing image size
-            x1 = int(res[j][0] * w)
-            y1 = int(res[j][1] * h)
-            x2 = int(res[j][2] * w)
-            y2 = int(res[j][3] * h)
+            x1 = int(label[0] * w)
+            y1 = int(label[1] * h)
+            x2 = int(label[2] * w)
+            y2 = int(label[3] * h)
             result_image = cv2.rectangle(result_image, (x1, y1), (x2, y2), (0, 0, 255), 1)
             result_image = cv2.putText(result_image, str(detected), (x1, y1-1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
             print("Detect " + str(j) + "(" + str(detected) + ")")
             print("Coordinates : [{:.5f}, {:.5f}, {:.5f}, {:.5f}]".format(x1, y1, x2, y2))
-            print("Confidence : {:.7f}".format(res[j][4]))
+            print("Confidence : {:.7f}".format(label[4]))
             print("")
         print("\n\n")
-        cv2.imshow("result"+str(i), result_image)
+        cv2.imshow("result"+str(i), cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB))
         cv2.waitKey()
 
 if __name__ == "__main__":    
@@ -453,7 +453,8 @@ if __name__ == "__main__":
         if img is None:
             continue
         origin_images.append(img)
-        input_images.append(preprocess_image(img, input_size))
+        input_img = preprocess_image(img, input_size)
+        input_images.append(input_img)
 
     # inference
     inf_res = model_wrapper.inference(input_images)
@@ -467,4 +468,4 @@ if __name__ == "__main__":
         res.append(tmp)
 
     # print result
-    print_result(res)
+    print_result(input_images, res)
