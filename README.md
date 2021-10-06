@@ -1,22 +1,19 @@
 # Runtime
 
-아래 링크로 들어가서 runtime.py를 돌리기 위한 예시 모델과 이미지들을 다운받아줍니다.
+이 Repository는 .trt, .tflite 형태의 파일을 입력으로 받아 Inference 하고, 결과를 시각화해주는 runtime 소스코드가 있는 Repository 입니다.
 
-- https://drive.google.com/file/d/1Nu0xVcE-WRIDc-6wzSN-92bEPYH_v4Y1/view?usp=sharing
 
-  
 
-예시 명령어는 아래와 같습니다.
+### Acknowledgement
 
-1. trt
+---
 
-```shell
-python3 ~/runtime.py --model ./30vyt516.trt --image_folder ./image/ --classes ./30vyt516_class.yaml
-```
+This work was supported by Institute of Information & communications Technology Planning & Evaluation (IITP) grant funded by the Korea government (MSIT) (No. 2021-0-00907, Development of Adaptive and Lightweight Edge-Collaborative Analysis Technology for Enabling Proactively Immediate Response and Rapid Learning).
 
-2. tflite
 
-```shell
-python3 ~/runtime.py --model ./30vyt516.tflite --image_folder ./image/ --classes ./30vyt516_class.yaml
-```
 
+### How to run
+
+---
+
+getting_started.md 파일을 참고하여 실행해주세요.
