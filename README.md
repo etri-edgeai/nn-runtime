@@ -1,6 +1,6 @@
 # Runtime
 
-이 Repository는 .trt, .tflite 형태의 파일을 입력으로 받아 Inference 하고, 결과를 시각화해주는 runtime 소스코드가 있는 Repository 입니다.
+This repository involves the source codes for inferring models in the form of the TensorRT (.trt) and tflite (.tflie). The visualization for the inference results is also supported.
 
 
 
@@ -12,4 +12,4 @@ This work was supported by Institute of Information & communications Technology 
 
 ## How to run
 
-[getting_started.md](https://github.com/nota-github/modelsearch-runtime/blob/main/getting_started.md) 파일을 참고하여 실행해주세요.
+Please refer to [getting_started.md](https://github.com/nota-github/modelsearch-runtime/blob/main/getting_started.md) above.
