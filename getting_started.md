@@ -1,6 +1,10 @@
-# Getting Started
+# Quick Start
 
-[여기](https://docs.nvidia.com/deeplearning/frameworks/install-tf-jetson-platform/index.html)에 설명되어 있는 대로 Jetson 디바이스에서 Tensorflow 설치를 진행하고, 아래 명령어를 입력하여 Protobuf 3.8.0을 설치합니다.
+
+
+## Step 1
+
+To install the TensorFlow on Nvidia Jetson devices, please refer to [here](https://docs.nvidia.com/deeplearning/frameworks/install-tf-jetson-platform/index.html). Protobuf 3.8.0 also has to be installed as follows:
 
 ```shell
 $ mkdir ${HOME}/project
@@ -13,7 +17,11 @@ $ source ${HOME}/.bashrc
 
 
 
-다음으로, 아래 명령어를 입력하여 depencency 설치 및 TensorRT Engine을 빌드해줍니다.
+
+
+## Step 2
+
+To install dependencies and build the TensorRT Engine, please enter the commands as follow.
 
 ```Shell
 $ cd ${HOME}/project
@@ -27,7 +35,11 @@ $ make
 
 
 
-위 과정이 모두 완료되었다면, 아래 명령어를 입력하여 yolo 모델을 다운받아주고, yolo_to_onnx.py와 onnx_to_tensorrt.py 코드를 실행시켜 TensorRT가 정상적으로 동작하는지 테스트 해줍니다.
+
+
+## Step 3
+
+In order to check whether the TensorRT works, you need to download a yolo model, then sequentially execute ‘yolo_to_onnx.py’ and onnx_to_tensorrt.py’ as follows:
 
 ```shell
 $ cd ${HOME}/project/tensorrt_demos/yolo
@@ -40,9 +52,11 @@ $ python3 onnx_to_tensorrt.py -v -m yolov4-416
 
 
 
----
 
-위 과정이 모두 실행되었다면, modelsearch-runtime repository를 clone 하여 가져온 다음 실행시켜줍니다.
+
+## Step 4
+
+To use this runtime module, you need to clone this repository in your local storage and install dependencies that are described in ‘requirements.txt’.
 
 ```shell
 $ git clone https://github.com/nota-github/modelsearch-runtime.git
@@ -51,18 +65,18 @@ $ pip3 install -r requirements.txt
 
 
 
-아래 링크로 들어가서 runtime.py를 돌리기 위한 예시 모델과 이미지들을 다운받아줍니다.(Optional)
+To execute the ‘runtime.py’, you can use an example model with sample images that we provide, which can be accessed on this link below.
 
 - https://drive.google.com/file/d/1Nu0xVcE-WRIDc-6wzSN-92bEPYH_v4Y1/view?usp=sharing
 
 
 
-예시 명령어는 아래와 같습니다.
+Example command:
 
 ```shell
 $ python3 ~/runtime.py --model ./30vyt516.trt --image_folder ./image/ --classes ./30vyt516_class.yaml
 ```
 
-- --model : .trt 혹은 .tflite 확장자로 되어있는 모델 file 경로
-- --image_folder : 최소 한 장 이상의 이미지가 들어있는 directory 경로
-- --classes : 각 class 정보들이 담겨있는 yaml file 경로
+- --model : a path where .trt or .tflite model file is located
+- --image_folder : a path where images are located
+- --classes : a path where a ‘yaml file’ that contains classes information are located
