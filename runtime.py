@@ -1,10 +1,6 @@
-import cv2
+import cv2, time, yaml, os, sys
 import numpy as np
-import time
-import argparse
-import yaml
-import os
-import sys
+from utils.argparse import ThrowingArgumentParser
 
 # import tflite related
 try:
