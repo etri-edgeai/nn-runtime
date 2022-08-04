@@ -26,3 +26,17 @@ def convert_torch2onnx(
         return False, e
 
     return True, None
+
+if __name__ == '__main__':
+    import sys
+    sys.path.append('..')
+    from utils.argparse import parse_torch2onnx_arguments
+    values = parse_torch2onnx_arguments(sys.argv)
+    convert_torch2onnx(
+        torch_model_path=values.get('torch_model_path'),
+        output_onnx_model_path=values.get('output_onnx_model_path'),
+        input_shape=values.get('input_shape'),
+        input_names=values.get('input_names'),
+        output_names=values.get('output_names'),
+        opset_version=values.get('opset_version')
+    )    
