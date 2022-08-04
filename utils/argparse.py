@@ -16,3 +16,16 @@ def torch2onnx_argument_parser() -> ThrowingArgumentParser:
     parser.add_argument('--opset-version',type=int, default=12, help='onnx operation set version (ex: 12')
     return parser
 
+def parse_torch2onnx_arguments(input) -> dict:
+    parser = torch2onnx_argument_parser()
+    args, _ = parser.parse_known_args(input)
+    #TODO: show warnings for unknown input arguments.
+
+    return {
+        'torch_model_path': args.torch,
+        'output_onnx_model_path': args.onnx,
+        'input_shape': tuple(args.input_shape),
+        'input_names': args.input_names,
+        'output_names': args.output_names,
+        'opset_version': args.opset_version,
+    }
