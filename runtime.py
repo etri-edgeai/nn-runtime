@@ -1,10 +1,6 @@
-import cv2
+import cv2, time, yaml, os, sys
 import numpy as np
-import time
-import argparse
-import yaml
-import os
-import sys
+from utils.argparse import ThrowingArgumentParser
 
 # import tflite related
 try:
@@ -417,14 +413,14 @@ def print_result(input_images, result_label):
         cv2.waitKey()
 
 if __name__ == "__main__":    
-    parser = argparse.ArgumentParser()
+    parser = ThrowingArgumentParser()
     parser.add_argument('--model', required=True, help='model path')
     parser.add_argument('--image_folder', required=True, help='image path')
     parser.add_argument('--conf_thres', required=False, default=0.25, help='confidence threshold')
     parser.add_argument('--iou_thres', required=False, default=0.60, help='iou threshold')
     parser.add_argument('--batch', required=False, default=1, help='batch size')
     parser.add_argument('--classes', required=True, help='yaml file with class info')
-    args = parser.parse_args()
+    args, unknowns = parser.parse_known_args()
     
     # load class info(.yaml)
     with open(args.classes) as f:
