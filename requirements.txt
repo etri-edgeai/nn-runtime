@@ -6,6 +6,7 @@ openvino-dev==2022.1.0  # OpenVINO export
 protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
 onnx>=1.9.0 # ONNX export
 onnx-simplifier>=0.3.6  # ONNX simplifier
+onnxruntime
 tensorflow==2.8.0
 tensorflow-datasets
 pandas
