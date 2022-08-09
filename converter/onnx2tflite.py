@@ -68,3 +68,11 @@ def representative_dataset_gen():
     for i in range(0, np.shape(input)[0]):
         yield [np.array([input[i,:,:,:]], dtype=np.float32)]
 
+
+def convert_tflite_fp32(model_path:str):
+    import tensorflow as tf
+    converter = tf.lite.TFLiteConverter.from_saved_model(model_path)
+    tflite_model = converter.convert()        
+    return tflite_model
+
+
