@@ -63,3 +63,8 @@ def export_openvino2tensorflow(openvino_path=_default_openvino_output_path,
         return tensorflow_file_path, e
 
 
+def representative_dataset_gen():
+    import numpy as np
+    for i in range(0, np.shape(input)[0]):
+        yield [np.array([input[i,:,:,:]], dtype=np.float32)]
+
