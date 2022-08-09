@@ -47,3 +47,19 @@ def export_onnx2openvino(onnx_path,
         print(f'export failure: {e}')
         return output_dir, e
         
+
+def export_openvino2tensorflow(openvino_path=_default_openvino_output_path,
+                                openvino_xml_file_name=_default_openvino_xml_file_name,
+                                tensorflow_file_path=_default_tensorflow_file_path):
+
+    try:
+        openvino_xml_file = os.path.join(openvino_path, openvino_xml_file_name)
+        cmd = f"openvino2tensorflow --model_path {openvino_xml_file} --model_output_path {tensorflow_file_path} --output_saved_model"
+        subprocess.check_output(cmd.split())  # export
+        print(f'{__file__} export success, saved as {tensorflow_file_path} ({file_size(tensorflow_file_path):.1f} MB)')
+        return tensorflow_file_path, None
+    except Exception as e:
+        print(f'export failure: {e}')
+        return tensorflow_file_path, e
+
+
