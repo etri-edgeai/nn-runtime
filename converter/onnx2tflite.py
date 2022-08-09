@@ -63,6 +63,36 @@ def export_openvino2tensorflow(openvino_path=_default_openvino_output_path,
         return tensorflow_file_path, e
 
 
+def export_tensorflow2tflite(dtype:str, output_dir, tensorflow_file_path=_default_tensorflow_file_path):
+    # TF-Lite export
+    try:
+        print(f'{__file__} starting export with tflite...')
+
+        output_dir = '../opt/output/'
+        weights = "../opt/output/output_saved_model"
+        if dtype == "FP32":
+            tflite_model = convert_tflite_fp32(weights)    
+            file_name = "output_fp32.tflite"
+        elif dtype == "FP16":
+            tflite_model = convert_tflite_fp32(weights)
+            file_name = "output_fp16.tflite"
+        else:
+            tflite_model = convert_tflite_int8(weights)
+            file_name = "output_int8.tflite"
+
+        output_model_path = os.path.join(output_dir, file_name)
+        with open(output_model_path, "wb") as f:
+            f.write(tflite_model)                
+        # remove openvino & tensorflow model 
+        shutil.rmtree("../opt/output/output_openvino")#, ignore_errors=False, onerror=None)
+        shutil.rmtree("../opt/output/output_saved_model")#, ignore_errors=False, onerror=None)
+
+        print(f'{__file__} export success, saved as {output_model_path} ({file_size(output_model_path):.1f} MB)')
+        return output_model_path
+    except Exception as e:
+        print(f'export failure: {e}')
+
+
 def representative_dataset_gen():
     import numpy as np
     for i in range(0, np.shape(input)[0]):
