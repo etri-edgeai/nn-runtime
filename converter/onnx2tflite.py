@@ -1,3 +1,4 @@
+from enum import Enum
 import os, sys, pathlib, subprocess, shutil
 from utils.general import file_size
 _default_openvino_output_path = './temp/openvino_output'
@@ -6,7 +7,14 @@ _default_openvino_bin_file_name = 'output.bin'
 _default_openvino_map_file_name = 'output.mapping'
 _default_tensorflow_file_path = './temp/tensorflow_output/output.h5'
 
-def export_onnx2openvino(onnx_path, output_dir=_default_openvino_output_path):
+class ModelDataType(Enum):
+    FP32='FP32'
+    FP16='FP16'
+    INT8='INT8'
+
+def export_onnx2openvino(onnx_path,
+                        output_dir=_default_openvino_output_path,
+                        dtype=ModelDataType.FP32):
     """
        Converting onnx to openvino
        Returns openvino output path and an exception if an exception is raised.
@@ -19,7 +27,7 @@ def export_onnx2openvino(onnx_path, output_dir=_default_openvino_output_path):
 
         #os.makedirs('../opt/output', exist_ok=True)
         os.makedirs(output_dir, exist_ok=True)
-        cmd = f"mo --input_model {onnx_path} --output_dir {output_dir} --data_type FP32"
+        cmd = f"mo --input_model {onnx_path} --output_dir {output_dir} --data_type {dtype.name}"
         subprocess.check_output(cmd.split())  # export
 
         print(f'{__file__} export success, saved as {output_dir} ({file_size(output_dir):.1f} MB)')
