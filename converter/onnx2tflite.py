@@ -85,3 +85,16 @@ def convert_tflite_fp16(model_path:str):
     tflite_model = converter.convert()
     return tflite_model
 
+
+def convert_tflite_int8(model_path:str):
+    import tensorflow as tf
+    #integer only: int8_full.tflite
+    converter = tf.lite.TFLiteConverter.from_saved_model(model_path)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.representative_dataset = representative_dataset_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8  # or tf.uint8
+    converter.inference_output_type = tf.int8  # or tf.uint8
+    converter.experimental_new_quantizer = True
+    tflite_model = converter.convert()
+    return tflite_model
