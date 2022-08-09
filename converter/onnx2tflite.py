@@ -76,3 +76,12 @@ def convert_tflite_fp32(model_path:str):
     return tflite_model
 
 
+def convert_tflite_fp16(model_path:str):
+    import tensorflow as tf
+    converter = tf.lite.TFLiteConverter.from_saved_model(model_path)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+    converter.target_spec.supported_types = [tf.float16]
+    tflite_model = converter.convert()
+    return tflite_model
+
