@@ -1,16 +1,11 @@
 from enum import Enum
 import os, sys, pathlib, subprocess, shutil
 from utils.general import file_size
-_default_openvino_output_path = './temp/openvino_output'
-_default_openvino_xml_file_name = 'output.xml'
-_default_openvino_bin_file_name = 'output.bin'
-_default_openvino_map_file_name = 'output.mapping'
-_default_tensorflow_file_path = './temp/tensorflow_output/output.h5'
+from utils.argparse import ModelDataType
 
-class ModelDataType(Enum):
-    FP32='FP32'
-    FP16='FP16'
-    INT8='INT8'
+_default_tensorflow_output_path = './temp/tensorflow_output'
+_default_tflite_output_path = './temp/tflite_output'
+_default_saved_pb_file_name = 'saved_model.pb'
 
 def export_onnx2openvino(onnx_path,
                         output_dir=_default_openvino_output_path,

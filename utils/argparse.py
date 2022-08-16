@@ -1,4 +1,11 @@
 import argparse
+import sys
+from enum import Enum
+
+class ModelDataType(Enum):
+    FP32='FP32'
+    FP16='FP16'
+    INT8='INT8'
 
 class ArgumentParserError(Exception): pass
 
