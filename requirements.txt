@@ -1,9 +1,9 @@
-protobuf<4.21.3  # https://github.com/ultralytics/yolov5/issues/8012
-numpy==1.21.0
+numpy>=1.21.0
 onnx>=1.9.0 # ONNX export
 onnx-simplifier>=0.3.6  # ONNX simplifier
-tensorflow==2.8.0
+tensorflow>=2.9.0
 tensorflow-datasets
+onnx-tf
 pandas
 opencv-python 
 matplotlib
