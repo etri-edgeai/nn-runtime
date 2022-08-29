@@ -1,3 +1,0 @@
-[submodule "converter/openvino2tensorflow"]
-	path = converter/openvino2tensorflow
-	url = https://github.com/PINTO0309/openvino2tensorflow.git
