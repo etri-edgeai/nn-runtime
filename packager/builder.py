@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader
 from setuptools import setup
 from typing import Optional
 from pydantic import BaseModel, validator
-import requests
+from obfuscator.obfuscator import obfuscate
 
 def make_template(env: Environment, target, dist, render_data:dict):
     template = env.get_template(target)
@@ -183,7 +183,7 @@ def build_package(data:dict):
     # mkdir -> copy -> template -> (obf) -> build & package
     task_id = str(uuid.uuid4())
     logging.info(f'Build start taskID: {task_id}')
-    _distribute = os.path.abspath(os.path.join("/tmp/work", ''.join(random.choice(string.ascii_lowercase + '0123456789') for i in range(8))))
+    _distribute = os.path.abspath(os.path.join('./dist', ''.join(random.choice(string.ascii_lowercase + '0123456789') for i in range(8))))
     _base = os.path.dirname(__file__)
     logging.info(f'Create package output folder {_distribute}')
     if os.path.exists(_distribute):
@@ -240,11 +240,13 @@ def build_package(data:dict):
         os.path.join(_distribute, package_name),
         {"framework":framework}
     )
-    
+
     # obf
+    _obf_ditribute = _distribute
     if is_obf:
-        logging.info(f'Obfuscate package')
-        #_distribute = obfuscate(platform, python_version, _distribute, package_name, framework, model_files)
+        logging.info(f'Obfuscate source codes')
+        _obf_ditribute =  os.path.abspath(os.path.join('./dist/obf', ''.join(random.choice(string.ascii_lowercase + '0123456789') for i in range(8))))
+        obfuscate(_distribute, _obf_ditribute)
 
     logging.info(f'Build package')
     _build(
@@ -256,13 +258,10 @@ def build_package(data:dict):
         distribution=_distribute, 
         is_obf=is_obf
     )
-    
-    # upload
-    whl_file = [i for i in os.listdir(_distribute) if os.path.splitext(i)[1] == '.whl'][0]
-    logging.info(f'Upload `whl` file {whl_file}')
+
     
     logging.info(f'Remove {_distribute}')
     if is_obf:
-        _distribute = os.path.dirname(_distribute)
+        shutil.rmtree(_obf_ditribute)    
     shutil.rmtree(_distribute)
     return
