@@ -17,9 +17,13 @@ class JetsonDevice(Enum):
 def export_onnx2trt(dtype=ModelDataType.FP32,
                     jetson_type=JetsonDevice.XAVIER_NX,
                     onnx_path=_default_onnx_output_path,
-                    additional_options=None,
+                    additional_options=["--FP16"],
                     output_dir=_default_trt_output_path):
-    """
-    
-    """
-
+    client = ETBClient("put etb url here")
+    #TODO: match device
+    target_node = [node for node in client.nodes if node.name.lower() == jetson_type.value.lower()]
+    client.requestConvert(onnx_model_path=onnx_path,
+                        target_node=target_node,
+                        output_model_path=output_dir,
+                        options=additional_options)
+    return
