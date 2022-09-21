@@ -1,6 +1,5 @@
-import requests
-from urllib.parse import urljoin
 from pathlib import Path
+from etb import etb_apis
 
 def joinURL(*parts):
     return '/'.join([p.strip().strip('/') for p in parts])
@@ -8,30 +7,28 @@ def joinURL(*parts):
 class ETBClient():
     def __init__(self, etb_url: str = None) -> None:
         self.endpoint = etb_url
+        self.nodes = etb_apis.get_nodes()
 
     @property
     def upload_model_url(self):
         return joinURL(self.endpoint, 'upload_model')
 
-    def requestConvert(self, onnx_model_path: str, output_model_path: str, options=None):
+    def requestConvert(self, onnx_model_path: str, target_node, output_model_path: str, options=None):
         try:
+            nodes = etb_apis.get_nodes()
             file = Path(onnx_model_path)
             with file.open() as f:
-                print(f'upload file "{onnx_model_path}" to ETB....')
-                upload_file = {'file':file}
-                upload_result = requests.request(method='post', url=self.endpoint, files=upload_file)
-                if upload_result.ok is not True:
-                    raise Exception(f'failed to upload {onnx_model_path} to ETB')
-                print(f'{onnx_model_path} is uploaded.')
-                json_body = {}
-                #TODO: parse result and build benchmark request json
-                print(f'request benchmark with options {options}')
-                benchmark_result = requests.request(method='post', url=self.endpoint, json=json_body)
-                if benchmark_result.ok is not True:
-                    raise Exception(f'benchmark failed: {benchmark_result.reason}')
-                #TODO: parse benchmark result and return.
+                print(f'building trt from "{onnx_model_path}" on ETB....')
+                etb_apis.build(self.upload_model_url, onnx_model_path, arguments=options)
+                etb_apis.run(target_node, timeout=600)
+                ret_json = etb_apis.wait_results()
+                if ret_json is None:
+                    raise Exception(f'failed to create trt model from {onnx_model_path} on ETB')
+
+                #TODO: parse benchmark result.
+                #TODO: save converted trt into output_model_path and return.
                 result_json = {}
                 return  result_json
         except Exception as e:
-            print(f'convert {onnx_model_path} to TensorRT failed: {str(e)}')
+            print(f'converting {onnx_model_path} to TensorRT on ETB is failed: {str(e)}')
             return None
