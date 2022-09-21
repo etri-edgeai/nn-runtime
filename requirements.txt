@@ -8,3 +8,4 @@ pandas
 opencv-python 
 matplotlib
 requests
+fastapi
