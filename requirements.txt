@@ -7,3 +7,4 @@ onnx-tf
 pandas
 opencv-python 
 matplotlib
+requests
