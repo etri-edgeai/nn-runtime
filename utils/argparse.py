@@ -5,7 +5,6 @@ from enum import Enum
 class ModelDataType(Enum):
     FP32='FP32'
     FP16='FP16'
-    INT8='INT8'
 
 class ArgumentParserError(Exception): pass
 
@@ -44,7 +43,7 @@ def parse_torch2onnx_arguments(input) -> dict:
 def torch2tflite_argument_parser() -> ThrowingArgumentParser:
     parser = default_torch2_argument_parser()
     parser.add_argument('--tflite', type=str, required=True, help='output onnx model path (ex: /path/to/file.tflite')
-    parser.add_argument('--dtype', type=ModelDataType, default=ModelDataType.FP32, choices=list(ModelDataType), help='model data type (available: FP32, FP16, INT8)')
+    parser.add_argument('--dtype', type=ModelDataType, default=ModelDataType.FP32, choices=list(ModelDataType), help='model data type (available: FP32, FP16)')
     return parser
 
 def parse_torch2tflite_arguments(input=sys.argv[1:]) -> dict:
