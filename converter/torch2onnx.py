@@ -1,4 +1,5 @@
 from typing import Tuple
+import logging
 
 def convert_torch2onnx(
     torch_model_path,
@@ -25,7 +26,7 @@ def convert_torch2onnx(
         model_onnx = onnx.load(output_onnx_model_path)  # load onnx model
         onnx.save(onnx.shape_inference.infer_shapes(model_onnx), output_onnx_model_path)
     except Exception as e:
-        print(f'export to onnx error: {str(e)}')
+        logging.info(f'export to onnx error: {str(e)}')
         return False, e
 
     return True, None

@@ -1,5 +1,6 @@
 from pathlib import Path
 from etb import etb_apis
+import logging
 
 def joinURL(*parts):
     return '/'.join([p.strip().strip('/') for p in parts])
@@ -18,7 +19,7 @@ class ETBClient():
             nodes = etb_apis.get_nodes()
             file = Path(onnx_model_path)
             with file.open() as f:
-                print(f'building trt from "{onnx_model_path}" on ETB....')
+                logging.info(f'building trt from "{onnx_model_path}" on ETB....')
                 etb_apis.build(self.upload_model_url, onnx_model_path, arguments=options)
                 etb_apis.run(target_node, timeout=600)
                 ret_json = etb_apis.wait_results()
@@ -30,5 +31,5 @@ class ETBClient():
                 result_json = {}
                 return  result_json
         except Exception as e:
-            print(f'converting {onnx_model_path} to TensorRT on ETB is failed: {str(e)}')
+            logging.info(f'converting {onnx_model_path} to TensorRT on ETB is failed: {str(e)}')
             return None
