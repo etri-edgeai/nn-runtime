@@ -210,9 +210,6 @@ class TFLWrapper(ModelWrapper):
         avg_time = 0
 
         for image in input_images:
-            if self.inputs[0]['dtype'] == np.uint8:
-                input_scale, input_zero_point = self.inputs[0]["quantization"]
-                image = image / input_scale + input_zero_point
             image = image.astype(self.inputs[0]['dtype'])
             # reshape images depending on dims(nchw, nhwc)
             if self.dims == "nchw":

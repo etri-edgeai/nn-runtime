@@ -21,6 +21,9 @@ def convert_torch2onnx(
             input_names=input_names,
             output_names=output_names,
             opset_version=opset_version)
+        import onnx
+        model_onnx = onnx.load(output_onnx_model_path)  # load onnx model
+        onnx.save(onnx.shape_inference.infer_shapes(model_onnx), output_onnx_model_path)
     except Exception as e:
         print(f'export to onnx error: {str(e)}')
         return False, e

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Set
 
 import onnx.checker
 from onnx import ModelProto, ValueInfoProto
-from utils.argparse import ModelDataType, ThrowingArgumentParser
+from utils.argparse import ThrowingArgumentParser
 
 def update_inputs_outputs_dims(
     model: ModelProto,
