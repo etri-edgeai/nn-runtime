@@ -1,4 +1,4 @@
-import os, subprocess
+import os, subprocess, logging
 from utils.general import file_size
 from utils.argparse import ModelDataType
 
@@ -14,10 +14,10 @@ def export_onnx2tensorflow(onnx_path, output_dir=_default_tensorflow_output_path
         os.makedirs(output_dir, exist_ok=True)
         cmd = f"onnx-tf convert -i {onnx_path} --outdir {output_dir}"
         subprocess.check_output(cmd.split())  # export
-        print(f'{__file__} export success, saved as {output_dir} ({file_size(output_dir):.1f} MB)')
+        logging.info(f'{__file__} export success, saved as {output_dir} ({file_size(output_dir):.1f} MB)')
         return output_dir, None
     except Exception as e:
-        print(f'export failure: {e}')
+        logging.info(f'export failure: {e}')
         return output_dir, e
 
 def export_tensorflow2tflite(dtype=ModelDataType.FP32,
@@ -26,7 +26,7 @@ def export_tensorflow2tflite(dtype=ModelDataType.FP32,
     # TF-Lite export
     os.makedirs(output_dir, exist_ok=True)
     try:
-        print(f'{__file__} starting export with tflite...')
+        logging.info(f'{__file__} starting export with tflite...')
         if dtype.name == "FP16":
             tflite_model = convert_tflite_fp16(tensorflow_path)
             file_name = "output_fp16.tflite"
@@ -38,11 +38,11 @@ def export_tensorflow2tflite(dtype=ModelDataType.FP32,
         with open(output_model_path, "wb") as f:
             f.write(tflite_model)                
 
-        print(f'{__file__} export success, saved as {output_model_path} ({file_size(output_model_path):.1f} MB)')
+        logging.info(f'{__file__} export success, saved as {output_model_path} ({file_size(output_model_path):.1f} MB)')
         return output_model_path
 
     except Exception as e:
-        print(f'export failure: {e}')
+        logging.info(f'export failure: {e}')
 
 
 def representative_dataset_gen():

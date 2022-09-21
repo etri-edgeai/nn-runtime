@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any, Dict, List, Set
-
+import logging
 import onnx.checker
 from onnx import ModelProto, ValueInfoProto
 from utils.argparse import ThrowingArgumentParser
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         model_onnx = onnx.load(arguments.onnx)  # load onnx model
         onnx.checker.check_model(model_onnx)  # check onnx model
         adjusted_batch_size_model = update_inputs_outputs_dims(model_onnx, input_dims, output_dims)
-        print(onnx.helper.printable_graph(adjusted_batch_size_model.graph))  # print
+        logging.info(onnx.helper.printable_graph(adjusted_batch_size_model.graph))  # print
         onnx.save(adjusted_batch_size_model, arguments.output)
     except Exception as e:
-        print(f'Error occu{str(e)}')
+        logging.info(f'Error occu{str(e)}')
