@@ -4,7 +4,7 @@
 
 ## Step 1
 
-To install the TensorFlow on Nvidia Jetson devices, please refer to [here](https://docs.nvidia.com/deeplearning/frameworks/install-tf-jetson-platform/index.html). Protobuf 3.8.0 also has to be installed as follows:
+To install TensorFlow on Nvidia Jetson devices, please refer to [here](https://docs.nvidia.com/deeplearning/frameworks/install-tf-jetson-platform/index.html). Protobuf 3.8.0 also has to be installed as follows:
 
 ```shell
 $ mkdir ${HOME}/project
