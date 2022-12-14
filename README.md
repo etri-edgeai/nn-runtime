@@ -1,8 +1,12 @@
-# Runtime
+# NN-Runtime Builder
 
 This repository involves the source codes for inferring models in the form of the TensorRT (.trt) and tflite (.tflie). The visualization for the inference results is also supported.
 
 
+## Supported Runtimes
+
+- TensorRT
+- TensorFlow Lite
 
 ## Acknowledgement
 
