@@ -59,7 +59,7 @@ $ python3 onnx_to_tensorrt.py -v -m yolov4-416
 To use this runtime module, you need to clone this repository in your local storage and install dependencies that are described in‘'requirements.txt'.
 
 ```shell
-$ git clone https://github.com/nota-github/modelsearch-runtime.git
+$ git clone https://github.com/etri-edgeai/nn-runtime.git
 $ pip3 install -r requirements.txt
 ```
 
