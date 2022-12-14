@@ -39,7 +39,7 @@ $ make
 
 ## Step 3
 
-In order to check whether the TensorRT works, you need to download a yolo model, then sequentially execute ‘yolo_to_onnx.py’ and onnx_to_tensorrt.py’ as follows:
+In order to check whether TensorRT works, you need to download a Yolo model, then sequentially execute ‘'yolo_to_onnx.py' and 'onnx_to_tensorrt.py' as follows:
 
 ```shell
 $ cd ${HOME}/project/tensorrt_demos/yolo
@@ -56,7 +56,7 @@ $ python3 onnx_to_tensorrt.py -v -m yolov4-416
 
 ## Step 4
 
-To use this runtime module, you need to clone this repository in your local storage and install dependencies that are described in ‘requirements.txt’.
+To use this runtime module, you need to clone this repository in your local storage and install dependencies that are described in‘'requirements.txt'.
 
 ```shell
 $ git clone https://github.com/nota-github/modelsearch-runtime.git
@@ -65,7 +65,7 @@ $ pip3 install -r requirements.txt
 
 
 
-To execute the ‘runtime.py’, you can use an example model with sample images that we provide, which can be accessed on this link below.
+To execute the 'runtime.py', you can use an example model with sample images that we provide, which can be accessed on this link below.
 
 - https://drive.google.com/file/d/1Nu0xVcE-WRIDc-6wzSN-92bEPYH_v4Y1/view?usp=sharing
 
