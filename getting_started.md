@@ -67,8 +67,7 @@ $ pip3 install -r requirements.txt
 
 To execute the 'runtime.py', you can use an example model with sample images that we provide, which can be accessed on this link below.
 
-- https://drive.google.com/file/d/1Nu0xVcE-WRIDc-6wzSN-92bEPYH_v4Y1/view?usp=sharing
-
+- [TBD]
 
 
 Example command:
