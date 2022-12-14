@@ -21,7 +21,7 @@ $ source ${HOME}/.bashrc
 
 ## Step 2
 
-To install dependencies and build the TensorRT Engine, please enter the commands as follow.
+To install dependencies and build the TensorRT engine, please enter the commands as follow.
 
 ```Shell
 $ cd ${HOME}/project
