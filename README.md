@@ -12,4 +12,4 @@ This work was supported by Institute of Information & communications Technology 
 
 ## How to run
 
-Please refer to [getting_started.md](https://github.com/nota-github/modelsearch-runtime/blob/main/getting_started.md) above.
+Please refer to [getting_started.md](https://github.com/etri-edgeai/nn-runtime/blob/main/getting_started.md) above.
