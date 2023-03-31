@@ -11,6 +11,14 @@ from tensorflow import keras
 
 from etb import etb_apis
 
+"""
+    `src`: the directory which will be loaded up as the working directory.
+    `src/test.py`: the entry point. See what value is assigned to `cmd`.
+    If you want to execute the TRT converter in the docker container,
+    you should add a python program including the converter and execute it by `cmd`.
+
+"""
+
 def _build(key):
     #image_name = "nvcr.io/nvidia/l4t-tensorflow:r32.7.1-tf2.7-py3"
     #image_name = "nvcr.io/nvidia/tensorrt:23.02-py3"
