@@ -1,6 +1,7 @@
 # functions defined in etb package.
+from etb import etb
 
-def build(docker_img_addr, src_path, arguments=None, work_path="."):
+def build(docker_img_addr, src_path, arguments, platform="linux/arm64", work_path="."):
     """ Build function (Preparation)
 
         ** NOTE: Assume that we have a CLI program converting a (TF/Torch/ONNX) model to a TRT model.
@@ -23,13 +24,24 @@ def build(docker_img_addr, src_path, arguments=None, work_path="."):
         Args.
         
             docker_img_addr: str, docker image address
+            src_path: str, a root path to the CLI program
             arguments: list, a list of arguments (strings) will be given to the CLI program (your program supposed to be
                 executed in an edge device)
-            src_path: str, a root path to the CLI program
+            platform: str, default: "linux/arm64", which will be passed to the input for the `platform` option of `docker buildx`.
             work_path str, a working path will be given to Docker as the value of the '-f-' option.
             (You may omit this.)
 
     """
+    cmd = str(arguments)
+    docker_file = f"""
+FROM {docker_img_addr}
+WORKDIR /usr/src/app
+COPY {src_path} .
+CMD {cmd}
+"""
+
+    print(docker_file)
+    etb.build("test", "v1.0", docker_file, platform=platform, work_path=work_path)
 
 def run(nodes, timeout=None):
     """Run function (Actual execution)
@@ -40,6 +52,7 @@ def run(nodes, timeout=None):
             timeout: int, the maximum waiting time (secs)
 
     """
+    return etb.run("test", "v1.0", nodes=nodes, timeout=timeout)
 
 def get_nodes():
     """Retrieve nodes names
@@ -49,8 +62,9 @@ def get_nodes():
             a list of node ids (strings)
 
     """
+    return etb.nodes()
 
-def wait_results():
+def wait_result(key):
     """Wait for the ETB process
 
         Returns.
@@ -58,11 +72,7 @@ def wait_results():
             The output JSON string
 
     """
+    return etb.wait_result("test", "v1.0", key, remove=True)
 
-#######################################
-def example():
-    import etb
-    nodes = etb.get_nodes()
-    etb.build("129.254.165.171.5000/tensorrt_onnx:v1.0", "./src", arguments=["arg1", "arg2"])
-    etb.run(nodes[:1], timeout=600)
-    ret_json = etb.wait_results()
+def download(tid, filename="temp.zip"):
+    etb.download_file(tid, filename=filename)

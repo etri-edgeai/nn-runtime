@@ -1,9 +1,0 @@
-{
-	"log_server_ip": "Server_IP",
-	"log_server_port": 9200,
-	"etb_server":	"http://Server_IP:8080",
-	"docker_registry": "Server_IP:5000",
-	"access_token": "user_token",
-	"node_name": "node_id",
-	"gpu": false 
-}
