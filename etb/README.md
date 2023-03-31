@@ -55,12 +55,13 @@ pip install -e .
 ##### Add node information.
 ```
 	nodes = {
-		`node_name`: {
+		"n1": {
 			"ip":"192.168.0.11"
 		}
 	}
 ```
-Change `node_name` to whatever you want.
+"n1" is the name of an edge, so change `n1` to whatever you want.
+"ip" is the IP address of the edge.
 
 #### Modify agent_access_tokens
 ```
