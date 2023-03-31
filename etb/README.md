@@ -128,18 +128,7 @@ Use your IP address instead of server_ip.
 		gpu = True # gpu usability
 ```
 
-#### Execution
-```
-$ cd scripts/edge
-$ python agent.py
-```
-
-If there is an error about ModuleNetFoundError for `etb, then execute the following command.
-```
-$ PYTHONPATH=/home/edge/nn-runtime/etb python agent.py
-```
-
-### Tester where the caller is located.
+### Tester where the caller is located
 
 #### Install Docker
 Install Docker supporting buildx.
@@ -179,4 +168,40 @@ Use your IP address instead of server_ip.
 It is not that important option. Do not change anything.
 ```
 	access_token = "user_token" # user access token or node access token
+```
+
+### Execution
+
+#### Server
+
+Elasticsearch, Kibana
+```
+$ cd scripts/es
+$ bash exec_es.sh
+$ bash exec_kibana.sh
+```
+
+Run `server.py`.
+```
+$ cd scripts/server
+$ python server.py 
+```
+
+#### Edge
+```
+$ cd scripts/edge
+$ python agent.py
+```
+
+If there is an error about ModuleNetFoundError for `etb, then execute the following command.
+```
+$ PYTHONPATH=/home/edge/nn-runtime/etb python agent.py
+```
+
+#### Tester
+Here is an example program using etb.
+ 
+```
+$ cd example
+$ python run.py
 ```
