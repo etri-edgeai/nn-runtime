@@ -44,13 +44,6 @@ def export_tensorflow2tflite(dtype=ModelDataType.FP32,
     except Exception as e:
         logging.info(f'export failure: {e}')
 
-
-def representative_dataset_gen():
-    import numpy as np
-    for i in range(0, np.shape(input)[0]):
-        yield [np.array([input[i,:,:,:]], dtype=np.float32)]
-
-
 def convert_tflite_fp32(model_path:str):
     import tensorflow as tf
     converter = tf.lite.TFLiteConverter.from_saved_model(model_path)
