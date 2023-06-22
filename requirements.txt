@@ -9,3 +9,6 @@ opencv-python
 matplotlib
 requests
 fastapi
+torch
+torchvision
+torchaudio
