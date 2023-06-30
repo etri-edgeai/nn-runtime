@@ -101,15 +101,14 @@ def _build(framework, platform, pkg_version, pkg_py_version, pkg_name, distribut
         package_data=package_data,
         install_requires=reqs_list,
         script_args = [
-            '-q',
             'build', 
-            '--build-purelib', os.path.join(distribution,"edge_ai"),
+            '--build-purelib', os.path.join(distribution, pkg_name),
             
             "bdist_wheel",
             "--plat-name", platform_dict[platform],
             "--python-tag", pkg_py_version,
             "--dist-dir", distribution,
-            "--bdist-dir", os.path.join(distribution,"edge_ai"),
+            "--bdist-dir", os.path.join(distribution, pkg_name),
         ]
     )
 
@@ -140,8 +139,7 @@ def build_package(data:dict):
 
     logging.info(f'prepare model for packaging')
     model_path:str = copy_model(
-        model_url=model_url,
-        model_file=model_file,
+        model_path=model_url,
         package_name=package_name,
         framework=framework,
         distribution=_distribute
@@ -164,26 +162,34 @@ def build_package(data:dict):
         os.path.join(_distribute, package_name),
         inference_template_var
     )
+
+    source = None
+
+    if source_path is not None:
+        try:
+            source_file = open(source_path, "r")
+            source = source_file.read()
+        except:
+            pass
+    
     if source is not None:
         with open(os.path.join(_distribute, package_name, "models/model.py"), "w") as f:
             f.write(source)
     else:
         os.remove(os.path.join(_distribute, package_name, "models/model.py"))
-    source = ""
-    if source_path is not None:
-        source_file = open(source_path, "r")
-        source = source_file.read()
 
-    make_template(
-        env, "models/model.py", 
-        os.path.join(_distribute, package_name),
-        {"source":source or ""}
-    )
     make_template(
         env, "models/base.py",
         os.path.join(_distribute, package_name),
         {"framework":framework}
     )
+
+    if os.path.exists(os.path.join(_distribute, package_name, "models/model.py")):
+        make_template(
+            env, "models/model.py", 
+            os.path.join(_distribute, package_name),
+            {"source":source or ""}
+        )
 
     # obf
     _obf_ditribute = _distribute
@@ -203,7 +209,13 @@ def build_package(data:dict):
         is_obf=is_obf
     )
 
-    
+    target_pkg_output_path = os.path.join(os.getcwd(), package_name)
+    if os.path.exists(target_pkg_output_path):
+        logging.info(f'Remove {target_pkg_output_path}')
+        shutil.rmtree(target_pkg_output_path)
+
+    logging.info(f'Copy package files... {target_pkg_output_path}')
+    shutil.copytree(_obf_ditribute if is_obf else _distribute, target_pkg_output_path)    
     logging.info(f'Remove {_distribute}')
     if is_obf:
         shutil.rmtree(_obf_ditribute)    
