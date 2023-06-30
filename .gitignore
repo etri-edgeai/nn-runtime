@@ -78,3 +78,4 @@ venv.bak/
 .vscode
 saved_resfpn34.onnx
 saved_resfpn34.pt
+resfpn34_weights.pth
