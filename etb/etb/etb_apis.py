@@ -1,7 +1,7 @@
 # functions defined in etb package.
 from etb import etb
 
-def build(docker_img_addr, src_path, arguments, platform="linux/arm64", work_path="."):
+def build(docker_img_addr, model_path, arguments, platform="linux/arm64", work_path="."):
     """ Build function (Preparation)
 
         ** NOTE: Assume that we have a CLI program converting a (TF/Torch/ONNX) model to a TRT model.
@@ -36,7 +36,7 @@ def build(docker_img_addr, src_path, arguments, platform="linux/arm64", work_pat
     docker_file = f"""
 FROM {docker_img_addr}
 WORKDIR /usr/src/app
-COPY {src_path} .
+COPY {model_path} .
 CMD {cmd}
 """
 
