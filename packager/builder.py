@@ -32,62 +32,6 @@ class PythonVersion(str, Enum):
     py38:str = "py38"
     py39:str = "py39"
 
-class Build(BaseModel):
-    framework: Framework
-    model_url: Optional[str]
-    package_name: Optional[str]
-    platform: Platform
-    package_version: Optional[str]
-    python_version: Optional[PythonVersion]
-    requirements: Optional[str]
-    obf: Optional[bool]
-    upload_url: Optional[str]
-
-    @classmethod
-    def as_form(
-        cls,
-        framework: Framework = Form(...),
-        model_path: Optional[str] = Form(None),
-        package_name: Optional[str] = Form("edge_ai_runtime"),
-        platform: Platform = Form(...), 
-        package_version: Optional[str] = Form("0.0.0"),
-        python_version: Optional[PythonVersion] = Form("py38"),
-        requirements: Optional[str] = Form(""),
-        obf: Optional[bool] = Form(True),
-        upload_url: Optional[str] = Form(None)
-    ):
-        return cls(
-            framework=framework, 
-            model_path=model_path,
-            package_name=package_name, 
-            platform=platform,
-            package_version=package_version, 
-            python_version=python_version, 
-            requirements=requirements, 
-            obf=obf,
-            upload_url=upload_url
-            )
-
-    @validator("model_path")
-    def check_model(cls, model_path):
-        if model_path == None:
-            return 
-        else:
-            return model_path
-
-    @validator("platform")
-    def check_platform(cls, platform):
-        return platform.value
-
-    @validator("framework")
-    def check_framework(cls, framework):
-        return framework.value
-
-    @validator("python_version")
-    def check_python_version(cls, python_version):
-        return python_version.value
-
-
 def copy_model(model_path, package_name, framework, distribution) -> str:
 
     _model = "model"
