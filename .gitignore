@@ -78,7 +78,6 @@ venv.bak/
 .vscode
 
 # Model files
-saved_resfpn34.onnx
 saved_resfpn34.pt
 resfpn34_weights.pth
 
