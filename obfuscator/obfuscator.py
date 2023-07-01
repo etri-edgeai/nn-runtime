@@ -1,5 +1,6 @@
 import marshal
 import os
+from pathlib import Path, PurePosixPath
 from glob import glob
 import argparse
 import logging
@@ -13,30 +14,29 @@ def obfuscate(
         target_folder:str, 
         output_folder:str="dist"
     ):
-    """난독화 작업을 하는 함수입니다. target folder의 *.py 파일들의 난독화를 진행합니다.
-    Parameters
-    ----------
-    str: target_folder
-    str: output_folder, default="dist"
-    """
+
     result = []
     for j in ["*.py"]:
         result.extend([y for x in os.walk(target_folder) for y in glob(os.path.join(x[0], j))])
 
-    logging.info(f"make folder")
-    os.makedirs(os.path.join(output_folder, target_folder),exist_ok=True)
-
-    for i in result:
-        logging.info(f"{i} file obfuscate")
-        with open(i, "rb") as f:
-            code = compile(f.read(), "", mode='exec', dont_inherit=True)
-            py_bytes = marshal.dumps(code)
-            a = str(py_bytes)
-
-        with open(os.path.join(output_folder, i), "w") as f:
-            loadme = f"""import marshal
+    try:
+        for i in result:
+            logging.info(f"{i} file obfuscate")
+            with open(i, "rb") as f:
+                code = compile(f.read(), "", mode='exec', dont_inherit=True)
+                py_bytes = marshal.dumps(code)
+                a = str(py_bytes)
+            tmp_path = PurePosixPath(i)
+            tmp_path = tmp_path.relative_to(target_folder)
+            target_path = os.path.join(output_folder, tmp_path)
+            logging.info(f"make folder")
+            Path(os.path.dirname(target_path)).mkdir(parents=True, exist_ok=True)
+            with open(target_path, "w") as t:
+                loadme = f"""import marshal
 exec(marshal.loads({a}))"""
-            f.write(loadme)
+                t.write(loadme)
+    except Exception as e:
+        print(e)
 
 def main():
     parser = argparse.ArgumentParser(description='🍄')

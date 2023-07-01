@@ -5,7 +5,6 @@ import traceback
 import hashlib
 import time
 
-from etb.etb import etb
 from etb.etb import etb_apis
 
 _default_onnx_output_path = './temp/onnx/output.onnx'
@@ -17,14 +16,6 @@ class JetsonDevice(Enum):
     AGX_XAVIER='AGX_XAVIER'
     XAVIER_NX='XAVIER_NX'
     AGX_ORIN='AGX_ORIN'
-
-"""
-    `src`: the directory which will be loaded up as the working directory.
-    `src/test.py`: the entry point. See what value is assigned to `cmd`.
-    If you want to execute the TRT converter in the docker container,
-    you should add a python program including the converter and execute it by `cmd`.
-
-"""
 
 def _build(model_file_path, model_file_name, additional_options, key):
     image_name = "nvcr.io/nvidia/tensorrt:23.02-py3"

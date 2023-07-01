@@ -112,10 +112,9 @@ def _build(framework, platform, pkg_version, pkg_py_version, pkg_name, distribut
         ]
     )
 
-def build_package(data:dict):
+def build_package(data:dict, output_dir:str="dist/package"):
     model_url:str = data.get("model_url")
     source_path:str = data.get("source_path")
-    model_file:bytes = data.get("model_file")
     package_name:str = data.get("package_name")
     platform:str = data.get("platform")
     framework:str = data.get("framework")
@@ -205,11 +204,11 @@ def build_package(data:dict):
         pkg_py_version=python_version, 
         pkg_version=package_version, 
         pkg_name=package_name, 
-        distribution=_distribute, 
+        distribution=_obf_ditribute if is_obf else _distribute, 
         is_obf=is_obf
     )
 
-    target_pkg_output_path = os.path.join(os.getcwd(), package_name)
+    target_pkg_output_path = os.path.join(output_dir, package_name)
     if os.path.exists(target_pkg_output_path):
         logging.info(f'Remove {target_pkg_output_path}')
         shutil.rmtree(target_pkg_output_path)
