@@ -73,9 +73,9 @@ To execute the 'runtime.py', you can use an example model with sample images tha
 Example command:
 
 ```shell
-$ python3 ~/runtime.py --model ./30vyt516.trt --image_folder ./image/ --classes ./30vyt516_class.yaml
+$ python3 ~/main.py --onnx=saved_resfpn34.onnx --target_framework=tflite
 ```
 
-- --model : a path where .trt or .tflite model file is located
-- --image_folder : a path where images are located
-- --classes : a path where a ‘yaml file’ that contains classes information are located
+- --onnx : a path where .onnx file is located
+- --model_py : a path where images are located
+- --target_framework : tflite or trt
