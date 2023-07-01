@@ -3,7 +3,7 @@
 from enum import Enum
 import traceback
 import hashlib
-import time
+import time, os
 
 from etb.etb import etb_apis
 
@@ -27,7 +27,8 @@ def run(jetson_type, onnx_path, output_file_path, additional_options):
     try:
         # nvidia: linux/arm64
         key = hashlib.md5(bytes(str(time.time()), 'utf-8')).hexdigest()
-        _build(onnx_path, additional_options, key)
+        head, tail = os.path.split(output_file_path)
+        _build(onnx_path, tail, additional_options, key)
         # TODO: set node with given jetson_type.
         tid = etb_apis.run(nodes=['n1'])
         reports = etb_apis.wait_result(key)

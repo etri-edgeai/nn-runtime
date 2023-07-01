@@ -92,4 +92,8 @@ if __name__ == "__main__":
         print(e)
         pass
 
-    build_runtime(onnx_file_path = opt.onnx, model_py_path = opt.model_py, package_name = opt.package_name, is_obf = opt.obfuscate)
+    build_runtime(onnx_file_path = opt.onnx,
+                  model_py_path = opt.model_py,
+                  target_framework = opt.target_framework,
+                  package_name = opt.package_name,
+                  is_obf = opt.obfuscate)
