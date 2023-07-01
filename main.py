@@ -32,7 +32,11 @@ def export_onnx(opt):
                     output_names=['output_0','output_1','output_2','output_3'],
                     opset_version=13)
     
-def build_runtime(onnx_file_path = 'saved_resfpn34.onnx', model_py_path = "resfpn34_model.py", target_framework = 'tflite'):
+def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
+                  model_py_path = "resfpn34_model.py",
+                  target_framework = 'tflite',
+                  package_name = 'resfpn34',
+                  is_obf = False):
 
     if target_framework == 'tflite' :
         from converter.onnx2tflite import export_tensorflow2tflite, export_onnx2tensorflow
@@ -43,11 +47,11 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx', model_py_path = "resfp
         tflite_package_data = {
             "model_url": tflite_model_path,
             "source_path": model_py_path,
-            "package_name": "resfpn34",
+            "package_name": package_name,
             "platform": Platform.linux_x64,
             "framework": Framework.tflite,
             "package_version": "0.0.1",
-            "obf": False,
+            "obf": is_obf,
             "python_version": PythonVersion.py39
         }
         build_package(data=tflite_package_data, output_dir="dist/package")
@@ -58,11 +62,11 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx', model_py_path = "resfp
         trt_package_data = {
             "model_url": trt_file_path,
             "source_path": model_py_path,
-            "package_name": "resfpn34",
+            "package_name": package_name,
             "platform": Platform.linux_x64,
             "framework": Framework.trt,
             "package_version": "0.0.1",
-            "obf": False,
+            "obf": is_obf,
             "python_version": PythonVersion.py39
         }
         build_package(data=trt_package_data, output_dir="dist/package")
@@ -79,6 +83,8 @@ if __name__ == "__main__":
     parser.add_argument("--onnx", type=str, default='saved_resfpn34.onnx', help="onnx file path")
     parser.add_argument("--model_py", type=str, default='resfpn34_model.py', help="pre/post processor python file path")
     parser.add_argument("--target_framework", type=str, default='tflite', help="tflite or trt")
+    parser.add_argument("--package_name", type=str, default='resfpn34', help="python package name which will be generated.")
+    parser.add_argument("--obfuscate", type=bool, default=False, help="default : False,  If True, obfuscated python package will be generated.")
     opt = parser.parse_args()
     try:
         export_onnx(opt)
@@ -86,4 +92,4 @@ if __name__ == "__main__":
         print(e)
         pass
 
-    build_runtime(onnx_file_path = opt.onnx, model_py_path = opt.model_py)
+    build_runtime(onnx_file_path = opt.onnx, model_py_path = opt.model_py, package_name = opt.package_name, is_obf = opt.obfuscate)
