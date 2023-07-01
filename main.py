@@ -7,10 +7,6 @@ from resnet_fpn import get_pose_net
 from utils.argparse import ModelDataType
 import torch
 import argparse
-import os
-
-from converter.onnx2tflite import export_tensorflow2tflite, export_onnx2tensorflow
-from converter.onnx2jetsontrt import export_onnx2trt, JetsonDevice
 
 from packager.builder import build_package, Platform, Framework, PythonVersion
 
@@ -36,37 +32,40 @@ def export_onnx(opt):
                     output_names=['output_0','output_1','output_2','output_3'],
                     opset_version=13)
     
-def build_runtime(onnx_file_path = 'saved_resfpn34.onnx', model_py_path = ''):
+def build_runtime(onnx_file_path = 'saved_resfpn34.onnx', model_py_path = "resfpn34_model.py", target_framework = 'tflite'):
 
-    tensorflow_dir = './temp/dist/tensorflow'
-    tflite_dir = 'dist/tflite'
-    export_onnx2tensorflow(onnx_path=onnx_file_path, output_dir=tensorflow_dir)
-    tflite_model_path = export_tensorflow2tflite(dtype=ModelDataType.FP16, tensorflow_path=tensorflow_dir, output_dir=tflite_dir)
-    tflite_package_data = {
-        "model_url": tflite_model_path,
-        "source_path": model_py_path,
-        "package_name": "resfpn34",
-        "platform": Platform.linux_x64,
-        "framework": Framework.tflite,
-        "package_version": "0.0.1",
-        "obf": False,
-        "python_version": PythonVersion.py39
-    }
-    build_package(data=tflite_package_data, output_dir="dist/package")
-
-    # trt_file_path = 'dist/ouput.trt'
-    # export_onnx2trt(jetson_type=JetsonDevice.AGX_ORIN, onnx_path=onnx_file_path, additional_options="--fp16", output_path=trt_file_path)
-    # trt_package_data = {
-    #     "model_url": trt_file_path,
-    #     "source_path": model_py_path,
-    #     "package_name": "resfpn34",
-    #     "platform": Platform.linux_x64,
-    #     "framework": Framework.trt,
-    #     "package_version": "0.0.1",
-    #     "obf": False,
-    #     "python_version": PythonVersion.py39
-    # }
-    # build_package(data=trt_package_data, output_dir="dist/package")
+    if target_framework == 'tflite' :
+        from converter.onnx2tflite import export_tensorflow2tflite, export_onnx2tensorflow
+        tensorflow_dir = './temp/dist/tensorflow'
+        tflite_dir = 'dist/tflite'
+        export_onnx2tensorflow(onnx_path=onnx_file_path, output_dir=tensorflow_dir)
+        tflite_model_path = export_tensorflow2tflite(dtype=ModelDataType.FP16, tensorflow_path=tensorflow_dir, output_dir=tflite_dir)
+        tflite_package_data = {
+            "model_url": tflite_model_path,
+            "source_path": model_py_path,
+            "package_name": "resfpn34",
+            "platform": Platform.linux_x64,
+            "framework": Framework.tflite,
+            "package_version": "0.0.1",
+            "obf": False,
+            "python_version": PythonVersion.py39
+        }
+        build_package(data=tflite_package_data, output_dir="dist/package")
+    else:
+        from converter.onnx2jetsontrt import export_onnx2trt, JetsonDevice
+        trt_file_path = 'dist/ouput.trt'
+        export_onnx2trt(jetson_type=JetsonDevice.AGX_ORIN, onnx_path=onnx_file_path, additional_options="--fp16", output_path=trt_file_path)
+        trt_package_data = {
+            "model_url": trt_file_path,
+            "source_path": model_py_path,
+            "package_name": "resfpn34",
+            "platform": Platform.linux_x64,
+            "framework": Framework.trt,
+            "package_version": "0.0.1",
+            "obf": False,
+            "python_version": PythonVersion.py39
+        }
+        build_package(data=trt_package_data, output_dir="dist/package")
 
     return
 
@@ -77,8 +76,9 @@ if __name__ == "__main__":
     parser.add_argument("--head_conv", type=int, default=128, help="network head output channels")
     parser.add_argument("--num_layers", type=int, default=34, help="ResNet-fpn layers")
     parser.add_argument("--weight_path", type=str, default='./resfpn34_weights.pth', help="pretrained weights path")
-    parser.add_argument("--onnx", type=str, default='./saved_resfpn34.onnx', help="onnx file path")
-    parser.add_argument("--model_py", type=str, default='./resfpn34_model.py', help="pre/post processor python file path")
+    parser.add_argument("--onnx", type=str, default='saved_resfpn34.onnx', help="onnx file path")
+    parser.add_argument("--model_py", type=str, default='resfpn34_model.py', help="pre/post processor python file path")
+    parser.add_argument("--target_framework", type=str, default='tflite', help="tflite or trt")
     opt = parser.parse_args()
     try:
         export_onnx(opt)
