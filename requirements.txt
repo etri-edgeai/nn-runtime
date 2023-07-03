@@ -12,3 +12,4 @@ fastapi
 torch
 torchvision
 torchaudio
+tensorflow_probability
