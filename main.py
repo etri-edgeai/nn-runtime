@@ -86,7 +86,7 @@ if __name__ == "__main__":
     parser.add_argument("--package_name", type=str, default='resfpn34', help="python package name which will be generated.")
     parser.add_argument("--obfuscate", type=bool, default=False, help="default : False,  If True, obfuscated python package will be generated.")
     parser.add_argument('--input_layer_names', nargs='*', help="name of input layers")
-    
+    parser.add_argument('--output_layer_names', nargs='*', help="name of output layers")
     opt = parser.parse_args()
     try:
         export_onnx(opt)
