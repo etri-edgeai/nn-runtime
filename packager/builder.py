@@ -32,9 +32,9 @@ class PythonVersion(str, Enum):
     py38:str = "py38"
     py39:str = "py39"
 
-def copy_model(model_path, package_name, framework, distribution) -> str:
+def copy_model(model_path, package_name, framework, distribution, model_name = 'model') -> str:
 
-    _model = "model"
+    _model = model_name
     if framework == 'tflite':
         _model += '.tflite'
     elif framework == "trt":
@@ -113,7 +113,8 @@ def _build(framework, platform, pkg_version, pkg_py_version, pkg_name, distribut
     )
 
 def build_package(data:dict, output_dir:str="dist/package"):
-    model_url:str = data.get("model_url")
+    model_names:[str] = data.get("model_names")
+    model_urls:[str] = data.get("model_urls")
     source_path:str = data.get("source_path")
     package_name:str = data.get("package_name")
     platform:str = data.get("platform")
@@ -137,12 +138,18 @@ def build_package(data:dict, output_dir:str="dist/package"):
     shutil.copytree(os.path.join(_base, "templates"), os.path.join(_distribute, package_name))
 
     logging.info(f'prepare model for packaging')
-    model_path:str = copy_model(
-        model_path=model_url,
-        package_name=package_name,
-        framework=framework,
-        distribution=_distribute
-    )
+    model_path:str = ''
+    for i, model_url in enumerate(model_urls):
+        tmp_model_path:str = copy_model(
+            model_path=model_url,
+            package_name=package_name,
+            framework=framework,
+            distribution=_distribute,
+            model_name=model_names[i],
+        )
+
+        if i == 0:
+            model_path = tmp_model_path
 
     template_model_name={
         "tflite":"tflite",
