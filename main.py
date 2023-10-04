@@ -61,6 +61,13 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
     else:
         from converter.onnx2jetsontrt import export_onnx2trt, JetsonDevice
 
+        model_names = ['model_fp16',
+                       'model_fp16_sparsity',
+                       'model_int8',
+                       'model_int8_sparsity',
+                       'model_mix.trt',
+                       'model_mix_sparsity']
+        
         trt_file_paths = ['dist/ouput_fp16.trt',
                           'dist/ouput_fp16_sparsity.trt',
                           'dist/ouput_int8.trt',
@@ -68,7 +75,7 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
                           'dist/ouput_mix.trt',
                           'dist/ouput_mix_sparsity.trt']
         
-        csv_priofile_paths = ['dist/ouput_fp16.csv',
+        csv_profile_paths = ['dist/ouput_fp16.csv',
                               'dist/ouput_fp16_sparsity.csv',
                               'dist/ouput_int8.csv',
                               'dist/ouput_int8_sparsity.csv',
@@ -84,21 +91,29 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
         ]
 
         if enable_dla:
+            model_names.append('model_fp16_sparsity_dla.trt')
+            model_names.append('model_int8_sparsity_dla.trt')
+            model_names.append('model_mix_sparsity_dla.trt')
             trt_file_paths.append('dist/ouput_fp16_sparsity_dla.trt')
             trt_file_paths.append('dist/ouput_int8_sparsity_dla.trt')
             trt_file_paths.append('dist/ouput_mix_sparsity_dla.trt')
-            csv_priofile_paths.append('dist/ouput_fp16_sparsity_dla.csv')
-            csv_priofile_paths.append('dist/ouput_int8_sparsity_dla.csv')
-            csv_priofile_paths.append('dist/ouput_mix_sparsity_dla.csv')
+            csv_profile_paths.append('dist/ouput_fp16_sparsity_dla.csv')
+            csv_profile_paths.append('dist/ouput_int8_sparsity_dla.csv')
+            csv_profile_paths.append('dist/ouput_mix_sparsity_dla.csv')
             trt_build_options.append('--fp16 --sparsity=enable --useDLACore=0 --allowGPUFallback')
             trt_build_options.append('--int8 --sparsity=enable --useDLACore=0 --allowGPUFallback')
             trt_build_options.append('--best --sparsity=enable --useDLACore=0 --allowGPUFallback')
 
         for i, engine_path in enumerate(trt_file_paths):
             build_option_string = trt_build_options[i]
-            export_onnx2trt(jetson_type=JetsonDevice.AGX_ORIN, onnx_path=onnx_file_path, additional_options=build_option_string, output_path=engine_path)
+            export_onnx2trt(jetson_type=JetsonDevice.AGX_ORIN,
+                            onnx_path=onnx_file_path,
+                            additional_options=build_option_string,
+                            output_path=engine_path,
+                            profile_output_path=csv_profile_paths[i])
         
         trt_package_data = {
+            "model_names": model_names,
             "model_urls": trt_file_paths,
             "source_path": model_py_path,
             "package_name": package_name,
