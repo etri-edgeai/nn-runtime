@@ -25,7 +25,7 @@ def _build(model_file_path, model_file_name, additional_options, key):
     arguments = ["python", "trtexec_caller.py", key, command]
     etb_apis.build(image_name, model_file_path, arguments, platform="linux/x86_64")
 
-def run(jetson_type, onnx_path, output_file_path, additional_options):
+def run(jetson_type, onnx_path, output_file_path, additional_options, profile_output_path):
     try:
         # nvidia: linux/arm64
         key = hashlib.md5(bytes(str(time.time()), 'utf-8')).hexdigest()
@@ -36,6 +36,13 @@ def run(jetson_type, onnx_path, output_file_path, additional_options):
         reports = etb_apis.wait_result(key)
         etb_apis.download(tid, filename=output_file_path)
         print(reports)
+        if profile_output_path is not None:
+            try:
+                profile_file = open(profile_output_path, "w")
+                profile_file.write(reports) #TODO: save only csv 
+                profile_file.close()
+            except:
+                pass
 
     except Exception as ex:
         traceback.print_exc()
@@ -44,6 +51,7 @@ def run(jetson_type, onnx_path, output_file_path, additional_options):
 def export_onnx2trt(jetson_type=JetsonDevice.AGX_ORIN,
                     onnx_path=_default_onnx_output_path,
                     additional_options=["--fp16"],
-                    output_path=_default_trt_output_path):
-    run(jetson_type, onnx_path, output_path, additional_options)
+                    output_path=_default_trt_output_path,
+                    profile_output_path='dist/ouput_fp16.csv'):
+    run(jetson_type, onnx_path, output_path, additional_options, profile_output_path)
     return
