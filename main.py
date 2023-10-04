@@ -36,6 +36,9 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
                   model_py_path = "resfpn34_model.py",
                   target_framework = 'tflite',
                   package_name = 'resfpn34',
+                  input_layer_names: [str] = None,
+                  output_layer_names: [str] = None,
+                  enable_dla: bool = False,
                   is_obf = False):
 
     if target_framework == 'tflite' :
