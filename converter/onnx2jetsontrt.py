@@ -23,6 +23,8 @@ def _build(model_file_path, model_file_name, additional_options, key):
     command =f'{trtexec} --onnx={model_file_name} --saveEngine=output_model.trt {additional_options} --buildOnly'
 
     arguments = ["python", "trtexec_caller.py", key, command]
+    # TODO: use model profiler
+    # arguments = ["python", "trtexec_caller_and_profiler.py", key, command]
     etb_apis.build(image_name, model_file_path, arguments, platform="linux/x86_64")
 
 def run(jetson_type, onnx_path, output_file_path, additional_options, profile_output_path):
