@@ -41,8 +41,9 @@ def model_initialize(cls, **kwargs)->None:
     
     TRT_LOGGER = tensorrt.Logger(tensorrt.Logger.WARNING)
     runtime = tensorrt.Runtime(TRT_LOGGER)
+    engine_path = kwargs.get("engine_path", os.path.join(os.path.dirname(__file__), "{{engine}}"))
 
-    with open(os.path.join(os.path.dirname(__file__), "{{engine}}"), "rb") as f:
+    with open(engine_path, "rb") as f:
         engine = runtime.deserialize_cuda_engine(f.read())
 
     context = engine.create_execution_context()
