@@ -13,6 +13,8 @@ from packager.builder import build_package, Platform, Framework, PythonVersion
 # os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
+def analyze_profile_data(model_class_names, csv_profile_paths, trt_file_paths, trt_file_names):
+    return model_class_names, trt_file_paths, trt_file_names
 
 @torch.no_grad()
 def export_onnx(opt):
@@ -40,7 +42,7 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
                   output_layer_names: [str] = None,
                   enable_dla: bool = False,
                   is_obf = False):
-
+    inference_class_name = 'NPModel'
     if target_framework == 'tflite' :
         from converter.onnx2tflite import export_tensorflow2tflite, export_onnx2tensorflow
         tensorflow_dir = './temp/dist/tensorflow'
@@ -61,12 +63,12 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
     else:
         from converter.onnx2jetsontrt import export_onnx2trt, JetsonDevice
 
-        model_names = ['model_fp16',
-                       'model_fp16_sparsity',
-                       'model_int8',
-                       'model_int8_sparsity',
-                       'model_mix.trt',
-                       'model_mix_sparsity']
+        model_class_names = [f'{inference_class_name}FP16',
+                       f'{inference_class_name}FP16Sparsity',
+                       f'{inference_class_name}Int8',
+                       f'{inference_class_name}Int8Sparsity',
+                       f'{inference_class_name}Mixed',
+                       f'{inference_class_name}MixedSparsity',]
         
         trt_file_paths = ['dist/ouput_fp16.trt',
                           'dist/ouput_fp16_sparsity.trt',
@@ -74,6 +76,13 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
                           'dist/ouput_int8_sparsity.trt',
                           'dist/ouput_mix.trt',
                           'dist/ouput_mix_sparsity.trt']
+        
+        trt_file_names = ['ouput_fp16.trt',
+                          'ouput_fp16_sparsity.trt',
+                          'ouput_int8.trt',
+                          'ouput_int8_sparsity.trt',
+                          'ouput_mix.trt',
+                          'ouput_mix_sparsity.trt']
         
         csv_profile_paths = ['dist/ouput_fp16.csv',
                               'dist/ouput_fp16_sparsity.csv',
@@ -91,12 +100,15 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
         ]
 
         if enable_dla:
-            model_names.append('model_fp16_sparsity_dla.trt')
-            model_names.append('model_int8_sparsity_dla.trt')
-            model_names.append('model_mix_sparsity_dla.trt')
+            model_class_names.append(f'{inference_class_name}FP16SparsityDLA')
+            model_class_names.append(f'{inference_class_name}Int8SparsityDLA')
+            model_class_names.append(f'{inference_class_name}MixedSparsityDLA')
             trt_file_paths.append('dist/ouput_fp16_sparsity_dla.trt')
             trt_file_paths.append('dist/ouput_int8_sparsity_dla.trt')
             trt_file_paths.append('dist/ouput_mix_sparsity_dla.trt')
+            trt_file_names.append('ouput_fp16_sparsity_dla.trt')
+            trt_file_names.append('ouput_int8_sparsity_dla.trt')
+            trt_file_names.append('ouput_mix_sparsity_dla.trt')
             csv_profile_paths.append('dist/ouput_fp16_sparsity_dla.csv')
             csv_profile_paths.append('dist/ouput_int8_sparsity_dla.csv')
             csv_profile_paths.append('dist/ouput_mix_sparsity_dla.csv')
@@ -111,10 +123,14 @@ def build_runtime(onnx_file_path = 'saved_resfpn34.onnx',
                             additional_options=build_option_string,
                             output_path=engine_path,
                             profile_output_path=csv_profile_paths[i])
-        
+        #TODO: select 4 engines
+        engine_class_names, engine_file_paths, engine_file_names = analyze_profile_data(model_class_names, csv_profile_paths, trt_file_names)
+
         trt_package_data = {
-            "model_names": model_names,
-            "model_urls": trt_file_paths,
+            "inference_class_name": inference_class_name,
+            "model_class_names": engine_class_names,
+            "model_urls": engine_file_paths,
+            "eingine_file_names": engine_file_names,
             "source_path": model_py_path,
             "package_name": package_name,
             "platform": Platform.linux_x64,
