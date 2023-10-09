@@ -24,6 +24,20 @@ def analyze_profile_data(model_class_names, csv_profile_paths, trt_file_paths, t
     
     for index, csv_file in enumerate(csv_profile_paths):
         inference_count = {0:0, 1:0, 2:0, 3:0,}
+        with open('names.csv', newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                print(row['first_name'], row['last_name'])
+                cpu_usage = float(row[' cpu_usage - %'])
+                mem_usage = float(row[' memory_usage - %'])
+            if cpu_usage >=0 and cpu_usage < 75 and mem_usage >= 0 and mem_usage < 75:
+                inference_count[0] = inference_count[0] + 1 
+            elif cpu_usage >=75 and mem_usage >= 0 and mem_usage < 75:
+                inference_count[1] = inference_count[1] + 1
+            elif cpu_usage >=0 and cpu_usage < 75 and mem_usage >= 75:
+                inference_count[2] = inference_count[2] + 1
+            elif cpu_usage >=75 and mem_usage >= 75:
+                inference_count[3] = inference_count[3] + 1
     return engine_class_names, engine_file_paths, engine_file_names
 
 @torch.no_grad()
