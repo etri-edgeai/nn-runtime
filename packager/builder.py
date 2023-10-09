@@ -113,8 +113,10 @@ def _build(framework, platform, pkg_version, pkg_py_version, pkg_name, distribut
     )
 
 def build_package(data:dict, output_dir:str="dist/package"):
-    model_names:[str] = data.get("model_names")
+
+    model_class_names:[str] = data.get("model_class_names")
     model_urls:[str] = data.get("model_urls")
+    eingine_file_names:[str] = data.get("eingine_file_names")
     source_path:str = data.get("source_path")
     package_name:str = data.get("package_name")
     platform:str = data.get("platform")
@@ -122,6 +124,7 @@ def build_package(data:dict, output_dir:str="dist/package"):
     package_version:str = data.get("package_version")
     is_obf:bool = data.get("obf")
     python_version:str = data.get("python_version")
+    inference_class_name:str = data.get("inference_class_name")
 
     # mkdir -> copy -> template -> (obf) -> build & package
     task_id = str(uuid.uuid4())
@@ -145,7 +148,7 @@ def build_package(data:dict, output_dir:str="dist/package"):
             package_name=package_name,
             framework=framework,
             distribution=_distribute,
-            model_name=model_names[i],
+            model_class_names=model_class_names[i],
         )
 
         if i == 0:
@@ -187,14 +190,18 @@ def build_package(data:dict, output_dir:str="dist/package"):
     make_template(
         env, "models/base.py",
         os.path.join(_distribute, package_name),
-        {"framework":framework}
+        {"framework":framework,
+         "engine_classes": model_class_names,
+         "engine_file_names": eingine_file_names}
     )
 
     if os.path.exists(os.path.join(_distribute, package_name, "models/model.py")):
         make_template(
             env, "models/model.py", 
             os.path.join(_distribute, package_name),
-            {"source":source or ""}
+            {"source":source or "", 
+             "model_classes": model_class_names,
+             "inference_class_name": inference_class_name}
         )
 
     # obf
