@@ -19,7 +19,7 @@ INTERPRETER = 'interpreter'
 input_attribute = NewType('input_attribute', Dict[str, DataAttribute])
 output_attribute = NewType('output_attribute', Dict[str, DataAttribute])
 
-def model_initialize(cls, **kwargs)->None:
+def model_initialize(cls:str, **kwargs)->None:
     """Todo
 
     Raises
@@ -28,12 +28,12 @@ def model_initialize(cls, **kwargs)->None:
         Todo
     """
     if is_init(cls) is True:
-        raise AlreadyInitializedError(cls.__name__)
+        raise AlreadyInitializedError(cls)
     
     inputs = {}
     outputs = {}
     bindings = []
-    
+
     class HostDeviceMem(object):
         def __init__(self, cpu_mem, gpu_mem):
             self.cpu = cpu_mem
@@ -41,7 +41,7 @@ def model_initialize(cls, **kwargs)->None:
     
     TRT_LOGGER = tensorrt.Logger(tensorrt.Logger.WARNING)
     runtime = tensorrt.Runtime(TRT_LOGGER)
-    engine_path = kwargs.get("engine_path", os.path.join(os.path.dirname(__file__), "{{engine}}"))
+    engine_path = os.path.join(os.path.dirname(__file__), kwargs.get("engine_file_name", "{{engine}}"))
 
     with open(engine_path, "rb") as f:
         engine = runtime.deserialize_cuda_engine(f.read())
@@ -153,7 +153,7 @@ def model_inference(cls:str, preprocess_result: Dict[int, numpy.ndarray], **kwar
         output_dict[output_name] = outputs[output_name].cpu
     return output_dict
 
-def is_init(cls)->bool:
+def is_init(cls:str)->bool:
     """입력 받은 클래스가 초기화 되었는지 확인합니다.
     
     Arguments
@@ -169,7 +169,7 @@ def is_init(cls)->bool:
     """
     return True if __interpreter_dict.get(cls, None) is not None else False
     
-def get_input_output_attributes(cls):
+def get_input_output_attributes(cls:str):
     """Todo"""
     dictionary = __interpreter_dict.get(cls, None)
     if dictionary is None:

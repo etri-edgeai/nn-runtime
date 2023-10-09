@@ -24,7 +24,7 @@ INTERPRETER = 'interpreter'
 input_attribute = NewType('input_attribute', Dict[int, DataAttribute])
 output_attribute = NewType('output_attribute', Dict[int, DataAttribute])
 
-def model_initialize(cls, num_threads:int=1, **kwargs)->bool:
+def model_initialize(cls:str, num_threads:int=1, **kwargs)->bool:
     """model_initalize는 모델 실행 준비를 하는 함수입니다. 
     모델 실행 전에 반드시 초기화 해야합니다. 
     
@@ -146,7 +146,7 @@ def model_inference(cls:str, preprocess_result: Dict[int, numpy.ndarray], **kwar
     
     return output_dict
 
-def is_init(cls)->bool:
+def is_init(cls:str)->bool:
     """입력 받은 클래스가 초기화 되었는지 확인합니다.
     
     Arguments
@@ -162,7 +162,7 @@ def is_init(cls)->bool:
     """
     return True if __interpreter_dict.get(cls, None) is not None else False
     
-def get_input_output_attributes(cls):
+def get_input_output_attributes(cls:str):
     """Todo"""
     dictionary = __interpreter_dict.get(cls, None)
     if dictionary is None:
