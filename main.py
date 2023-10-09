@@ -51,6 +51,12 @@ def analyze_profile_data(model_class_names, csv_profile_paths, trt_file_paths, t
         if best_counts[3] < inference_count[3]:
             best_counts[3] = inference_count[3]
             best_indexs[3] = index
+
+    for best_index in best_indexs:
+        engine_class_names.append(model_class_names[best_index])
+        engine_file_paths.append(trt_file_paths[best_index])
+        engine_file_names.append(trt_file_names[best_index])
+
     return engine_class_names, engine_file_paths, engine_file_names
 
 @torch.no_grad()
