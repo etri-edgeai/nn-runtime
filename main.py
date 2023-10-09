@@ -15,7 +15,16 @@ from packager.builder import build_package, Platform, Framework, PythonVersion
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def analyze_profile_data(model_class_names, csv_profile_paths, trt_file_paths, trt_file_names):
-    return model_class_names, trt_file_paths, trt_file_names
+    engine_class_names = []
+    engine_file_paths = []
+    engine_file_names = []
+
+    best_indexs = [0, 0, 0, 0]
+    best_counts = [0, 0, 0, 0]
+    
+    for index, csv_file in enumerate(csv_profile_paths):
+        inference_count = {0:0, 1:0, 2:0, 3:0,}
+    return engine_class_names, engine_file_paths, engine_file_names
 
 @torch.no_grad()
 def export_onnx(opt):
