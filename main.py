@@ -38,6 +38,19 @@ def analyze_profile_data(model_class_names, csv_profile_paths, trt_file_paths, t
                 inference_count[2] = inference_count[2] + 1
             elif cpu_usage >=75 and mem_usage >= 75:
                 inference_count[3] = inference_count[3] + 1
+
+        if best_counts[0] < inference_count[0]:
+            best_counts[0] = inference_count[0]
+            best_indexs[0] = index
+        if best_counts[1] < inference_count[1]:
+            best_counts[1] = inference_count[1]
+            best_indexs[1] = index
+        if best_counts[2] < inference_count[2]:
+            best_counts[2] = inference_count[2]
+            best_indexs[2] = index
+        if best_counts[3] < inference_count[3]:
+            best_counts[3] = inference_count[3]
+            best_indexs[3] = index
     return engine_class_names, engine_file_paths, engine_file_names
 
 @torch.no_grad()
