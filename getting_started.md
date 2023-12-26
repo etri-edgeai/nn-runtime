@@ -76,6 +76,8 @@ Example command:
 $ python3 ~/main.py --onnx=saved_resfpn34.onnx --target_framework=tflite
 ```
 
+need to make it work.
+
 - --onnx : a path where .onnx file is located
 - --model_py : a path where images are located
 - --target_framework : tflite or trt
