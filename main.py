@@ -18,39 +18,78 @@ def analyze_profile_data(model_class_names, csv_profile_paths, trt_file_paths, t
     engine_class_names = []
     engine_file_paths = []
     engine_file_names = []
-
-    best_indexs = [0, 0, 0, 0]
-    best_counts = [0, 0, 0, 0]
     
+    # CPU_GPU_MIN_MAX = [
+    #     {'cpu_min': 0, 'cpu_max': 75, 'gpu_min': 0, 'gpu_max': 75},
+    #     {'cpu_min': 75, 'cpu_max': 100, 'gpu_min': 0, 'gpu_max': 75},
+    #     {'cpu_min': 0, 'cpu_max': 75, 'gpu_min': 75, 'gpu_max': 100},
+    #     {'cpu_min': 75, 'cpu_max': 100, 'gpu_min': 75, 'gpu_max': 100},
+    # ]
+
+    CPU_GPU_MIN_MAX = [
+        {'cpu_min': 0, 'cpu_max': 25, 'gpu_min': 0, 'gpu_max': 25},
+        {'cpu_min': 25, 'cpu_max': 50, 'gpu_min': 0, 'gpu_max': 25},
+        {'cpu_min': 50, 'cpu_max': 75, 'gpu_min': 0, 'gpu_max': 25},
+        {'cpu_min': 75, 'cpu_max': 100, 'gpu_min': 0, 'gpu_max': 25},
+        {'cpu_min': 0, 'cpu_max': 25, 'gpu_min': 25, 'gpu_max': 50},
+        {'cpu_min': 25, 'cpu_max': 50, 'gpu_min': 25, 'gpu_max': 50},
+        {'cpu_min': 50, 'cpu_max': 75, 'gpu_min': 25, 'gpu_max': 50},
+        {'cpu_min': 75, 'cpu_max': 100, 'gpu_min': 25, 'gpu_max': 50},
+        {'cpu_min': 0, 'cpu_max': 25, 'gpu_min': 50, 'gpu_max': 75},
+        {'cpu_min': 25, 'cpu_max': 50, 'gpu_min': 50, 'gpu_max': 75},
+        {'cpu_min': 50, 'cpu_max': 75, 'gpu_min': 50, 'gpu_max': 75},
+        {'cpu_min': 75, 'cpu_max': 100, 'gpu_min': 50, 'gpu_max': 75},
+        {'cpu_min': 0, 'cpu_max': 25, 'gpu_min': 75, 'gpu_max': 100},
+        {'cpu_min': 25, 'cpu_max': 50, 'gpu_min': 75, 'gpu_max': 100},
+        {'cpu_min': 50, 'cpu_max': 75, 'gpu_min': 75, 'gpu_max': 100},
+        {'cpu_min': 75, 'cpu_max': 100, 'gpu_min': 75, 'gpu_max': 100},
+    ]
+        
+    best_indexs = []
+    best_avg_inference_time = []
+    avg_inference_time = {}
+    for i in range(0, len(CPU_GPU_MIN_MAX)):
+        best_indexs.append(0)
+        best_avg_inference_time.append(1000000)
+        avg_inference_time[i] = 0
+    max_cpu = 0
+    max_gpu = 0
     for index, csv_file in enumerate(csv_profile_paths):
-        inference_count = {0:0, 1:0, 2:0, 3:0,}
-        with open('names.csv', newline='') as csvfile:
+        with open(csv_file) as csvfile:
             reader = csv.DictReader(csvfile)
+            for i in range(0, len(CPU_GPU_MIN_MAX)):
+                avg_inference_time[i] = 0
+
             for row in reader:
-                print(row['first_name'], row['last_name'])
+                # print(row['first_name'], row['last_name'])
                 cpu_usage = float(row[' cpu_usage - %'])
                 mem_usage = float(row[' memory_usage - %'])
-            if cpu_usage >=0 and cpu_usage < 75 and mem_usage >= 0 and mem_usage < 75:
-                inference_count[0] = inference_count[0] + 1 
-            elif cpu_usage >=75 and mem_usage >= 0 and mem_usage < 75:
-                inference_count[1] = inference_count[1] + 1
-            elif cpu_usage >=0 and cpu_usage < 75 and mem_usage >= 75:
-                inference_count[2] = inference_count[2] + 1
-            elif cpu_usage >=75 and mem_usage >= 75:
-                inference_count[3] = inference_count[3] + 1
-
-        if best_counts[0] < inference_count[0]:
-            best_counts[0] = inference_count[0]
-            best_indexs[0] = index
-        if best_counts[1] < inference_count[1]:
-            best_counts[1] = inference_count[1]
-            best_indexs[1] = index
-        if best_counts[2] < inference_count[2]:
-            best_counts[2] = inference_count[2]
-            best_indexs[2] = index
-        if best_counts[3] < inference_count[3]:
-            best_counts[3] = inference_count[3]
-            best_indexs[3] = index
+                inference_time = float(row[' inference_time - ms'])
+                # if cpu_usage > max_cpu:
+                #     max_cpu = cpu_usage
+                # if mem_usage > max_gpu:
+                #     max_gpu = mem_usage
+                # if cpu_usage >=0 and cpu_usage < 75 and mem_usage >= 0 and mem_usage < 75:
+                #     inference_count[0] = inference_count[0] + 1 
+                # elif cpu_usage >=75 and mem_usage >= 0 and mem_usage < 75:
+                #     inference_count[1] = inference_count[1] + 1
+                # elif cpu_usage >=0 and cpu_usage < 75 and mem_usage >= 75:
+                #     inference_count[2] = inference_count[2] + 1
+                # elif cpu_usage >=75 and mem_usage >= 75:
+                #     inference_count[3] = inference_count[3] + 1
+                    
+                for condition_index, condition in enumerate(CPU_GPU_MIN_MAX):
+                    if (cpu_usage > condition['cpu_min'] and cpu_usage <= condition['cpu_max']) and (mem_usage > condition['gpu_min'] and mem_usage <= condition['gpu_max']):
+                        if avg_inference_time[condition_index] == 0:
+                            avg_inference_time[condition_index] = inference_time
+                        else:
+                            avg_inference_time[condition_index] = (avg_inference_time[condition_index] + inference_time)/2
+                        break
+        
+        for i in range(0, len(best_indexs)):
+            if best_avg_inference_time[i] > avg_inference_time[i] and avg_inference_time[i] > 0:
+                best_avg_inference_time[i] = avg_inference_time[i]
+                best_indexs[i] = index
 
     for best_index in best_indexs:
         engine_class_names.append(model_class_names[best_index])
